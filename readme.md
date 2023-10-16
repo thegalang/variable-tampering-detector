@@ -30,6 +30,13 @@ $DynamoPATH -c ../build/libglobal_var_write_detect.so -- bin/global_write
 
 DynamoRIO gives instruction in binary (instr_t), and its source, destination, and opcode is encoded using opnd_t.
 
-1. Functions to get data on a single instruction (e.g: instr_get_src, instr_get_dst, instr_get_opnd): https://dynamorio.org/dr__ir__instr_8h.html
+1. Main methodology on using dynamorio: https://www.google.com/search?channel=fs&client=ubuntu&q=code+manipulation+api
 
-2. API to get data on a single operand (e.g: opnd_get_addr, opnd_get_int): https://dynamorio.org/dr__ir__opnd_8h.html#a0ab6ce32e2e95004a263028e9879fc7e
+2. Functions to get data on a single instruction (e.g: instr_get_src, instr_get_dst, instr_get_opnd): https://dynamorio.org/dr__ir__instr_8h.html
+
+3. API to get data on a single operand (e.g: opnd_get_addr, opnd_get_int): https://dynamorio.org/dr__ir__opnd_8h.html#a0ab6ce32e2e95004a263028e9879fc7e
+
+4. Encoding and decoding new instructions: https://dynamorio.org/API_BT.html#sec_decode
+
+5. Utils, main functionality: https://dynamorio.org/API_BT.html#sec_decode
+
