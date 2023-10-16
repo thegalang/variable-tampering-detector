@@ -1,4 +1,32 @@
-DynamoRIO API Reference:
+# Compile Tools
+
+set env variable $DynamoRIO_HOME to your dynamorio home. i.e: /home/student/dynamorio
+
+run 
+```
+bash build_tools.sh
+```
+
+A folder `build` should be created alongside with the compiled tools.
+
+# Running Tools
+
+`apps` folder is the test apps we used tools on. First compile the app
+
+(TODO MAKEFILE)
+
+```
+gcc global_write.cpp -o bin/global_write
+```
+
+then run the tool 
+
+```
+$DynamoPATH -c ../build/libglobal_var_write_detect.so -- bin/global_write
+```
+
+
+# DynamoRIO API Reference:
 
 DynamoRIO gives instruction in binary (instr_t), and its source, destination, and opcode is encoded using opnd_t.
 
