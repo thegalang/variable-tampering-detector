@@ -51,26 +51,24 @@ static void instrument_mem_write(void *drcontext, instrlist_t *ilist, instr_t *w
 	// reg tmp value is no longer needed. can use to scratch
 	if(opnd_is_immed(src)) {
 
-		
-		drx_buf_insert_load_buf_ptr(drcontext, memfile_buf, ilist, where, reg_ptr);
+		int immed_value = opnd_get_immed_int(src);
 
-		// todo: store immed value in buffer
+		drx_buf_insert_load_buf_ptr(drcontext, memfile_buf, ilist, where, reg_ptr);
+		drx_buf_insert_buf_store(drcontext, memfile_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(immed_value), OPSZ_8, 0);
 
 	} else if(opnd_is_reg(src)) {
 
 		drx_buf_insert_load_buf_ptr(drcontext, memfile_buf, ilist, where, reg_ptr);
-
-		// todo: read reg value of src and store in reg_savedval
+		
 		// src is a reg, get it and store value in buffer
 		reg_id_t = opnd_get_reg(src);
+		drx_buf_insert_buf_store(drcontext, memfile_buf, ilist, where, reg_ptr, DR_REG_NULL, opnd_create_reg(src), OPSZ_8, 0);
 
-		// todo: insert immed value in buffer
-		drx_buf_insert_buf_store(drcontext, memfile_buf, ilist, where, reg_ptr, DR_REG_NULL, opnd_create_reg(reg_tmp), OPSZ_PTR, offsetof(memfile_t, addr)); 
-		drx_buf_insert_buf_store(drcontext, memfile_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT64(0), OPSZ_8, offsetof(memfile_t, value));
-		drx_buf_insert_buf_store(drcontext, memfile_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(size), OPSZ_4, offsetof(memfile_t, size));
 	}
 	
-
+	if (drreg_unreserve_register(drcontext, ilist, where, reg_ptr) != DRREG_SUCCESS ||
+	    drreg_unreserve_register(drcontext, ilist, where, reg_tmp) != DRREG_SUCCESS)
+		DR_ASSERT(false);
 
 	// ptr_int_t new_value = opnd_get_immed_int(src);
 	// void* dst_address = opnd_get_addr(dst);
