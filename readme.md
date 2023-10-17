@@ -38,5 +38,5 @@ DynamoRIO gives instruction in binary (instr_t), and its source, destination, an
 
 4. Encoding and decoding new instructions: https://dynamorio.org/API_BT.html#sec_decode
 
-5. Utils, main functionality: https://dynamorio.org/API_BT.html#sec_decode
+5. Utils, main functionality: https://dynamorio.org/group__drutil.html
 
