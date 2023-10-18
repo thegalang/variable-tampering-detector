@@ -17,6 +17,7 @@ void *mutex;
 
 void *global_var_address;
 
+drx_buf_t *global_history_buf;
 /*
 goal: Before memory write, check if written address is same as global
 if same, store written value in buffer
@@ -44,25 +45,27 @@ static void instrument_mem_write(void *drcontext, instrlist_t *ilist, instr_t *w
 	uint32_t size = drutil_opnd_mem_size_in_bytes(ref, where);
 	drutil_insert_get_mem_addr(drcontext, ilist, where, dst, reg_tmp, reg_ptr);
 
+	drx_buf_insert_load_buf_ptr(drcontext, memfile_buf, ilist, where, reg_ptr);
 	// compare if reg_tmp address is same as global address
 	// TODO
 
+
+	dr_printf("moved memory %p of value %d\n", opnd_get_addr(dst), opnd_get_immed(src));
+	
 	// if its a simple constant load
 	// reg tmp value is no longer needed. can use to scratch
 	if(opnd_is_immed(src)) {
 
 		int immed_value = opnd_get_immed_int(src);
-
-		drx_buf_insert_load_buf_ptr(drcontext, memfile_buf, ilist, where, reg_ptr);
-		drx_buf_insert_buf_store(drcontext, memfile_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT32(immed_value), OPSZ_8, 0);
+		drx_buf_insert_buf_store(drcontext, global_history_buf, ilist, where, reg_ptr, reg_tmp, OPND_CREATE_INT64(immed_value), OPSZ_8, 0);
+		drx_buf_insert_update_buf_ptr(drcontext, global_history_buf, ilist, where, reg_ptr, reg_tmp, OPSZ_8)
 
 	} else if(opnd_is_reg(src)) {
-
-		drx_buf_insert_load_buf_ptr(drcontext, memfile_buf, ilist, where, reg_ptr);
-		
+	
 		// src is a reg, get it and store value in buffer
-		reg_id_t = opnd_get_reg(src);
-		drx_buf_insert_buf_store(drcontext, memfile_buf, ilist, where, reg_ptr, DR_REG_NULL, opnd_create_reg(src), OPSZ_8, 0);
+		reg_id_t src_reg = opnd_get_reg(src);
+		drx_buf_insert_buf_store(drcontext, memfile_buf, ilist, where, reg_ptr, DR_REG_NULL, opnd_create_reg(src_reg), OPSZ_8, 0);
+		drx_buf_insert_update_buf_ptr(drcontext, global_history_buf, ilist, where, reg_ptr, reg_tmp, OPSZ_8)
 
 	}
 	
