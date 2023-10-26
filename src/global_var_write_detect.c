@@ -17,6 +17,8 @@
 void *mutex;
 
 void *global_var_address;
+int saved_global_var_value;
+
 
 // multiple of 6, OPSZ_8
 #define HISTORY_BUF_SIZE 510
@@ -26,6 +28,8 @@ FILE *global_history_fp;
 
 static void flush_global_history(void *drcontext, void *buf_base, size_t size) {
 
+	//dr_pr\n", buf_base);
+	//dr_printf("size is %d\n", size);
 	int n = size/OPSZ_8;
 	// all element are 8-byte integers
 	dr_mutex_lock(mutex);
@@ -37,7 +41,7 @@ static void flush_global_history(void *drcontext, void *buf_base, size_t size) {
 		char nextInt[8]; memset(nextInt, 0, sizeof(nextInt));
 
 		strncpy(nextInt, buf_base, OPSZ_8);
-		fprintf(global_history_fp, "%lld\n", *(long long*)nextInt);
+		fprintf(global_history_fp, "%d\n", *(int*)nextInt);
 		buf_base += OPSZ_8;
 	}
 
@@ -46,13 +50,14 @@ static void flush_global_history(void *drcontext, void *buf_base, size_t size) {
 }
 
 /*
-goal: Before memory write, check if written address is same as global
-if same, store written value in buffer
+goal: after memory write, check address value of global variable,
+compare current value with saved global value. if it has changed, log it
 */
-static dr_emit_flags_t instrument_mem_write(void *drcontext, instrlist_t *ilist, instr_t *where)
+static dr_emit_flags_t after_memory_write(void *drcontext, instrlist_t *ilist, instr_t *where)
 {
 
 	reg_id_t reg_ptr, reg_tmp, reg_savedval;
+
 
 	if (drreg_reserve_register(drcontext, ilist, where, NULL, &reg_tmp) !=
         DRREG_SUCCESS) {
@@ -65,38 +70,42 @@ static dr_emit_flags_t instrument_mem_write(void *drcontext, instrlist_t *ilist,
         DR_ASSERT(false);
         return DR_REG_NULL;
     }
-	
-	opnd_t src = instr_get_src(where, 0);
-	opnd_t dst = instr_get_dst(where, 0);
 
-	drutil_insert_get_mem_addr(drcontext, ilist, where, dst, reg_tmp, reg_ptr);
+    //dr_printf("%d\n", OP_je);
+    opnd_t tst = opnd_create_abs_addr(global_var_address, OPSZ_PTR);
 
+    instr_t* loadCurrentGlobalVarValue = INSTR_CREATE_mov_ld(drcontext, opnd_create_reg(reg_tmp), opnd_create_abs_addr(global_var_address, OPSZ_PTR));
+    opnd_t src = instr_get_src(loadCurrentGlobalVarValue, 0);
+    opnd_t dst = instr_get_dst(loadCurrentGlobalVarValue, 0);
+
+    // compare current value of global address with current value of global variable
+    //instr_t* isGlobalVarChange = INSTR_CREATE_cmp(drcontext, opnd_create_abs_addr(&saved_global_var_value, OPSZ_8), opnd_create_reg(reg_tmp));
+    //dr_printf("global_address hello: %p %d %d\n", opnd_get_addr(src), opnd_get_reg(dst), reg_tmp);
+    //dr_printf("saved address: %p\n", &saved_global_var_value);
+    
+    // if they are different, update occured
+    //instr_t* updateSavedGlobalValue = INSTR_CREATE_movd(drcontext, opnd_create_abs_addr(&saved_global_var_value, OPSZ_PTR), opnd_create_reg(reg_tmp));
+    //instr_t* labelContinue = INSTR_CREATE_label(drcontext);
+    //instr_t* continueIfEqual = INSTR_CREATE_jcc(drcontext, OP_je, opnd_create_instr(labelContinue));
+
+    // insert loadCurrentGlobalVarValue
+    instrlist_preinsert(ilist, where, loadCurrentGlobalVarValue);
+    dr_printf("keluar pak eko\n");
+    //instrlist_preinsert(ilist, where, isGlobalVarChange);
+    
+    //instrlist_preinsert(ilist, where, continueIfEqual);
+
+    // code to run if global variable value has changed
+    //instrlist_preinsert(ilist, where, updateSavedGlobalValue);
 	drx_buf_insert_load_buf_ptr(drcontext, global_history_buf, ilist, where, reg_ptr);
-
-	// TODO: change to actual inputted global variable
-	if(opnd_get_addr(dst) == 0x00007ffff3dd6018) {
+	drx_buf_insert_buf_store(drcontext, global_history_buf, ilist, where, reg_ptr, DR_REG_NULL, opnd_create_reg(reg_tmp), OPSZ_8, 0);
+	drx_buf_insert_update_buf_ptr(drcontext, global_history_buf, ilist, where, reg_ptr, reg_tmp, OPSZ_8);
 	
-		// if its a simple constant load
-		// reg tmp value is no longer needed. can use to scratch
-		if(opnd_is_immed(src)) {
+	dr_printf("done all instruction\n");
+	//instrlist_preinsert(ilist, where, labelContinue);
+	// code to run after global variable change logic is done
 
-			
 
-			u_int64_t immed_value = opnd_get_immed_int(src);
-			drx_buf_insert_buf_store(drcontext, global_history_buf, ilist, where, reg_ptr, reg_tmp, opnd_create_immed_int(immed_value, OPSZ_8), OPSZ_8, 0);
-			drx_buf_insert_update_buf_ptr(drcontext, global_history_buf, ilist, where, reg_ptr, reg_tmp, OPSZ_8);
-
-		} else if(opnd_is_reg(src)) {
-
-			// src is a reg, get it and store value in buffer
-			reg_id_t src_reg = opnd_get_reg(src);
-			drx_buf_insert_buf_store(drcontext, global_history_buf, ilist, where, reg_ptr, DR_REG_NULL, opnd_create_reg(src_reg), OPSZ_8, 0);
-			drx_buf_insert_update_buf_ptr(drcontext, global_history_buf, ilist, where, reg_ptr, reg_tmp, OPSZ_8);
-
-		}
-	}
-
-	// TODO: case when address input is a register must be handled
 	
 	if (drreg_unreserve_register(drcontext, ilist, where, reg_ptr) != DRREG_SUCCESS ||
 	    drreg_unreserve_register(drcontext, ilist, where, reg_tmp) != DRREG_SUCCESS)
@@ -121,7 +130,10 @@ static dr_emit_flags_t per_insn_instrument(void *drcontext, void *tag, instrlist
 		instr_num_dsts(instr) == 1 && 
 		opnd_is_memory_reference(instr_get_dst(instr, 0))) {
 
-		return instrument_mem_write(drcontext, bb, instr);
+		instr_t* nextInstr = instr_get_next(instr);
+		// debug
+		if(opnd_get_addr(instr_get_dst(instr, 0)) == global_var_address)
+		return after_memory_write(drcontext, bb, nextInstr);
 	} 
 
 	//	dr_insert_clean_call(drcontext, bb, instr, (void *)save_insn, false, 0);
@@ -136,6 +148,7 @@ static dr_emit_flags_t bb_instrumentation_analyze(void *drcontext, void *tag, in
 int glob1 = 0;
 
 static void event_exit(void) {
+
 
 	// free buffers
 	drx_buf_free(global_history_buf);
@@ -161,12 +174,22 @@ dr_client_main(client_id_t id, int argc, const char *argv[]) {
 	drreg_options_t ops = {sizeof(ops), 4, false};
 	drreg_init(&ops);
 
+	if(argc < 2) {
+		dr_printf("config file args missing");
+		DR_ASSERT(false);
+	}
+
+	FILE *configFP = fopen(argv[1], "r");
+	fscanf(configFP, "%p", &global_var_address);
+	saved_global_var_value = *(int*)global_var_address;
+
+
 	// register buffers
 	global_history_buf = drx_buf_create_trace_buffer(HISTORY_BUF_SIZE, flush_global_history);
 
 	// open file pointers
 	global_history_fp = fopen("global_history_log.out", "w");
-	fprintf(global_history_fp, "History of global variable:\n");
+	fprintf(global_history_fp, "Tracked global variable history:\n");
 	// register events
 	dr_register_exit_event(event_exit);
 	drmgr_register_bb_instrumentation_event(bb_instrumentation_analyze, per_insn_instrument, NULL);
