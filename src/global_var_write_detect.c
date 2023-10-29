@@ -150,9 +150,7 @@ static dr_emit_flags_t after_memory_write(void *drcontext, instrlist_t *ilist, i
 		DR_ASSERT(false);
 
 	return DR_EMIT_DEFAULT;
-	// ptr_int_t new_value = opnd_get_immed_int(src);
-	// void* dst_address = opnd_get_addr(dst);
-	// dr_printf("memory write (opcode %d) value %ld to %0x\n", opcode, new_value, dst_address);
+
 
 }
 
@@ -187,7 +185,6 @@ int glob1 = 0;
 static void event_exit(void) {
 
 
-	dr_printf("saved global var value: %d\n", saved_global_var_value);
 	// free buffers
 	drx_buf_free(global_history_buf);
 
@@ -220,7 +217,6 @@ dr_client_main(client_id_t id, int argc, const char *argv[]) {
 	FILE *configFP = fopen(argv[1], "r");
 	fscanf(configFP, "%p", &global_var_address);
 
-	dr_printf("saved global var address: %p %d\n", &saved_global_var_value, saved_global_var_value);
 	saved_global_var_value = *(int*)global_var_address;
 
 
