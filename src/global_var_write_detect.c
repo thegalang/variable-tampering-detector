@@ -20,6 +20,7 @@ void *mutex;
 void *global_var_address;
 int saved_global_var_value;
 int* saved_global_var_ptr = &saved_global_var_value;
+int num_global_var_changed;
 
 
 // multiple of 6, OPSZ_8
@@ -59,6 +60,7 @@ static dr_emit_flags_t after_memory_write(void *drcontext, instrlist_t *ilist, i
 {
 
 
+	dr_printf("%d %d %d\n", saved_global_var_value, *(int*)global_var_address, num_global_var_changed);
 	reg_id_t reg_ptr, reg_tmp, reg_flags;
 
 
@@ -124,19 +126,55 @@ static dr_emit_flags_t after_memory_write(void *drcontext, instrlist_t *ilist, i
     instrlist_preinsert(ilist, where, continueIfEqual);
 
     // ========= global var changed code ===============
+
     instrlist_preinsert(ilist, where, loadSavedGlobalValueAddress);
     instrlist_preinsert(ilist, where, updateSavedGlobalValue);
 
     instr_t* reloadSavedGlobalVarAddress = INSTR_CREATE_mov_ld(drcontext, opnd_create_reg(reg_tmp), opnd_create_abs_addr(&saved_global_var_value, OPSZ_PTR));
     instr_set_translation(reloadSavedGlobalVarAddress, instr_get_app_pc(where));
     instrlist_preinsert(ilist, where, reloadSavedGlobalVarAddress);
-    //instrlist_preinsert(ilist, where, loadSavedGlobalValue); // debug
 
     // at this moment, reg_tmp has current global var address
 	drx_buf_insert_load_buf_ptr(drcontext, global_history_buf, ilist, where, reg_ptr);
 	drx_buf_insert_buf_store(drcontext, global_history_buf, ilist, where, reg_ptr, DR_REG_NULL, opnd_create_reg(reg_tmp), OPSZ_8, 0);
 	drx_buf_insert_update_buf_ptr(drcontext, global_history_buf, ilist, where, reg_ptr, reg_tmp, OPSZ_PTR);
 	
+
+	// ========== global var counter update code ======
+
+
+	// instr_t* restoreEflags2 = INSTR_CREATE_popf(drcontext);
+ //    instr_set_translation(restoreEflags2, instr_get_app_pc(where));
+ //    instrlist_preinsert(ilist, where, restoreEflags2);
+
+ //    instr_t* saveEflags2 = INSTR_CREATE_pushf(drcontext);
+ //    instr_set_translation(saveEflags2, instr_get_app_pc(where));
+ //    instrlist_preinsert(ilist, where, saveEflags2);
+
+	instr_t* xorZeroing = INSTR_CREATE_xor(drcontext, opnd_create_reg(reg_tmp), opnd_create_reg(reg_tmp));
+	instr_set_translation(xorZeroing, instr_get_app_pc(where));
+	instrlist_preinsert(ilist, where, xorZeroing);
+
+	instr_t* loadCounterToReg = INSTR_CREATE_mov_ld(drcontext, opnd_create_reg(reg_tmp), opnd_create_abs_addr(&num_global_var_changed, OPSZ_PTR));
+	instr_set_translation(loadCounterToReg, instr_get_app_pc(where));
+	instrlist_preinsert(ilist, where, loadCounterToReg);
+
+
+    // instr_t* increaseChangedGlobalVarCounter = INSTR_CREATE_inc(drcontext, opnd_create_reg(reg_tmp));
+    // instr_set_translation(increaseChangedGlobalVarCounter, instr_get_app_pc(where));
+    // instrlist_preinsert(ilist, where, increaseChangedGlobalVarCounter);
+
+
+    instr_t* storeCounterToReg = INSTR_CREATE_mov_st(drcontext, opnd_create_abs_addr(&num_global_var_changed, OPSZ_PTR), opnd_create_reg(reg_tmp));
+	instr_set_translation(storeCounterToReg, instr_get_app_pc(where));
+	instrlist_preinsert(ilist, where, storeCounterToReg);
+    // instr_t* increaseChangedGlobalVarCounter = INSTR_CREATE_add(drcontext, opnd_create_abs_addr(&num_global_var_changed, OPSZ_PTR), OPND_CREATE_INT8(1));
+    // instr_set_translation(increaseChangedGlobalVarCounter, instr_get_app_pc(where));
+    // instrlist_preinsert(ilist, where, increaseChangedGlobalVarCounter);
+    
+
+    // ======== global var counter update code done ======
+
 	instrlist_preinsert(ilist, where, labelContinue);
 	
 	// ======== global var change completed code
@@ -185,6 +223,7 @@ int glob1 = 0;
 static void event_exit(void) {
 
 
+	dr_printf("num changed: %d\n", num_global_var_changed);
 	// free buffers
 	drx_buf_free(global_history_buf);
 
@@ -218,7 +257,7 @@ dr_client_main(client_id_t id, int argc, const char *argv[]) {
 	fscanf(configFP, "%p", &global_var_address);
 
 	saved_global_var_value = *(int*)global_var_address;
-
+	num_global_var_changed = 0;
 
 	// register buffers
 	global_history_buf = drx_buf_create_trace_buffer(HISTORY_BUF_SIZE, flush_global_history);
