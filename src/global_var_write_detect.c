@@ -58,9 +58,8 @@ compare current value with saved global value. if it has changed, log it
 static dr_emit_flags_t after_memory_write(void *drcontext, instrlist_t *ilist, instr_t *where)
 {
 
-	dr_printf("globalvar value: %d %p\n", saved_global_var_value, &saved_global_var_value);
 
-	reg_id_t reg_ptr, reg_tmp;
+	reg_id_t reg_ptr, reg_tmp, reg_flags;
 
 
 	if (drreg_reserve_register(drcontext, ilist, where, NULL, &reg_tmp) !=
@@ -70,6 +69,12 @@ static dr_emit_flags_t after_memory_write(void *drcontext, instrlist_t *ilist, i
     }
 
     if (drreg_reserve_register(drcontext, ilist, where, NULL, &reg_ptr) !=
+        DRREG_SUCCESS) {
+        DR_ASSERT(false);
+        return DR_REG_NULL;
+    }
+
+    if (drreg_reserve_register(drcontext, ilist, where, NULL, &reg_flags) !=
         DRREG_SUCCESS) {
         DR_ASSERT(false);
         return DR_REG_NULL;
@@ -94,18 +99,14 @@ static dr_emit_flags_t after_memory_write(void *drcontext, instrlist_t *ilist, i
     instr_set_translation(restoreEflags, instr_get_app_pc(where));
     
     
-    //opnd_t src = instr_get_src(isGlobalVarChange, 0);
-    //opnd_t dst = instr_get_src(isGlobalVarChange, 1);
-    //dr_printf("global_address hello: %d %d %p %x\n", opnd_get_reg(src), opnd_get_reg(dst), &saved_global_var_value, OP_cmp);
-    //dr_printf("saved address: %p\n", &saved_global_var_value);
-    
-    
     //dr_printf("saved_global_value_addr %p\n", saved_global_var_ptr);
     // first load address to a register then create a mov_st with base+dips
-    instr_t* loadSavedGlobalValueAddress = INSTR_CREATE_lea(drcontext, opnd_create_reg(reg_ptr), opnd_create_abs_addr(&saved_global_var_value, OPSZ_PTR));
+    opnd_t lol = opnd_create_abs_addr(global_var_address, OPSZ_PTR);
+    //dr_printf("value: %d\n", opnd_get_immed_int(lol));
+    instr_t* loadSavedGlobalValueAddress = INSTR_CREATE_mov_ld(drcontext, opnd_create_reg(reg_tmp), lol);
     instr_set_translation(loadSavedGlobalValueAddress, instr_get_app_pc(where));
 
-    instr_t* updateSavedGlobalValue = INSTR_CREATE_mov_st(drcontext, OPND_CREATE_MEM32(reg_ptr, 0), opnd_create_reg(reg_tmp));
+    instr_t* updateSavedGlobalValue = INSTR_CREATE_mov_st(drcontext, opnd_create_abs_addr(&saved_global_var_value, OPSZ_PTR), opnd_create_reg(reg_tmp));
     instr_set_translation(updateSavedGlobalValue, instr_get_app_pc(where));
 
     instr_t* labelContinue = INSTR_CREATE_label(drcontext);
@@ -122,25 +123,29 @@ static dr_emit_flags_t after_memory_write(void *drcontext, instrlist_t *ilist, i
     instrlist_preinsert(ilist, where, isGlobalVarChange);
     instrlist_preinsert(ilist, where, continueIfEqual);
 
-    // code to run if global variable value has changed
-    //instrlist_preinsert(ilist, where, loadSavedGlobalValueAddress);
-    //instrlist_preinsert(ilist, where, updateSavedGlobalValue);
+    // ========= global var changed code ===============
+    instrlist_preinsert(ilist, where, loadSavedGlobalValueAddress);
+    instrlist_preinsert(ilist, where, updateSavedGlobalValue);
 
-    // at this moment, reg_tmp has current global var value
+    instr_t* reloadSavedGlobalVarAddress = INSTR_CREATE_mov_ld(drcontext, opnd_create_reg(reg_tmp), opnd_create_abs_addr(&saved_global_var_value, OPSZ_PTR));
+    instr_set_translation(reloadSavedGlobalVarAddress, instr_get_app_pc(where));
+    instrlist_preinsert(ilist, where, reloadSavedGlobalVarAddress);
+    //instrlist_preinsert(ilist, where, loadSavedGlobalValue); // debug
+
+    // at this moment, reg_tmp has current global var address
 	drx_buf_insert_load_buf_ptr(drcontext, global_history_buf, ilist, where, reg_ptr);
 	drx_buf_insert_buf_store(drcontext, global_history_buf, ilist, where, reg_ptr, DR_REG_NULL, opnd_create_reg(reg_tmp), OPSZ_8, 0);
-	drx_buf_insert_update_buf_ptr(drcontext, global_history_buf, ilist, where, reg_ptr, reg_tmp, OPSZ_8);
+	drx_buf_insert_update_buf_ptr(drcontext, global_history_buf, ilist, where, reg_ptr, reg_tmp, OPSZ_PTR);
 	
 	instrlist_preinsert(ilist, where, labelContinue);
-	// code to run after global variable change logic is done
-
+	
+	// ======== global var change completed code
 	instrlist_preinsert(ilist, where, restoreEflags);
 
-
-   //dr_printf("hello out %d\n", OP_cmp);
 	
 	if (drreg_unreserve_register(drcontext, ilist, where, reg_ptr) != DRREG_SUCCESS ||
-	    drreg_unreserve_register(drcontext, ilist, where, reg_tmp) != DRREG_SUCCESS
+	    drreg_unreserve_register(drcontext, ilist, where, reg_tmp) != DRREG_SUCCESS ||
+	    drreg_unreserve_register(drcontext, ilist, where, reg_flags) != DRREG_SUCCESS
 	    )
 		DR_ASSERT(false);
 
@@ -164,8 +169,8 @@ static dr_emit_flags_t per_insn_instrument(void *drcontext, void *tag, instrlist
 		opnd_is_memory_reference(instr_get_dst(instr, 0))) {
 
 		
-		//instr_t* nextInstr = instr_get_next(instr);
-		return after_memory_write(drcontext, bb, instr);
+		instr_t* nextInstr = instr_get_next(instr);
+		return after_memory_write(drcontext, bb, nextInstr);
 	} 
 
 	//	dr_insert_clean_call(drcontext, bb, instr, (void *)save_insn, false, 0);
