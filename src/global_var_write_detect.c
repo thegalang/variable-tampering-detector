@@ -18,7 +18,7 @@
 void *mutex;
 
 void *global_var_address;
-int saved_global_var_value = 69;
+int saved_global_var_value;
 int* saved_global_var_ptr = &saved_global_var_value;
 
 
