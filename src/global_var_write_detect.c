@@ -19,8 +19,7 @@ void *mutex;
 
 void *global_var_address;
 int saved_global_var_value;
-int* saved_global_var_ptr = &saved_global_var_value;
-int num_global_var_changed;
+static int num_global_var_changed;
 
 
 // multiple of 6, OPSZ_8
@@ -60,7 +59,7 @@ static dr_emit_flags_t after_memory_write(void *drcontext, instrlist_t *ilist, i
 {
 
 
-	dr_printf("%d %d %d\n", saved_global_var_value, *(int*)global_var_address, num_global_var_changed);
+	//dr_printf("%d %d %d\n", saved_global_var_value, *(int*)global_var_address, num_global_var_changed);
 	reg_id_t reg_ptr, reg_tmp, reg_flags;
 
 
@@ -101,7 +100,6 @@ static dr_emit_flags_t after_memory_write(void *drcontext, instrlist_t *ilist, i
     instr_set_translation(restoreEflags, instr_get_app_pc(where));
     
     
-    //dr_printf("saved_global_value_addr %p\n", saved_global_var_ptr);
     // first load address to a register then create a mov_st with base+dips
     opnd_t lol = opnd_create_abs_addr(global_var_address, OPSZ_PTR);
     //dr_printf("value: %d\n", opnd_get_immed_int(lol));
@@ -142,36 +140,9 @@ static dr_emit_flags_t after_memory_write(void *drcontext, instrlist_t *ilist, i
 
 	// ========== global var counter update code ======
 
-
-	// instr_t* restoreEflags2 = INSTR_CREATE_popf(drcontext);
- //    instr_set_translation(restoreEflags2, instr_get_app_pc(where));
- //    instrlist_preinsert(ilist, where, restoreEflags2);
-
- //    instr_t* saveEflags2 = INSTR_CREATE_pushf(drcontext);
- //    instr_set_translation(saveEflags2, instr_get_app_pc(where));
- //    instrlist_preinsert(ilist, where, saveEflags2);
-
-	instr_t* xorZeroing = INSTR_CREATE_xor(drcontext, opnd_create_reg(reg_tmp), opnd_create_reg(reg_tmp));
-	instr_set_translation(xorZeroing, instr_get_app_pc(where));
-	instrlist_preinsert(ilist, where, xorZeroing);
-
-	instr_t* loadCounterToReg = INSTR_CREATE_mov_ld(drcontext, opnd_create_reg(reg_tmp), opnd_create_abs_addr(&num_global_var_changed, OPSZ_PTR));
-	instr_set_translation(loadCounterToReg, instr_get_app_pc(where));
-	instrlist_preinsert(ilist, where, loadCounterToReg);
-
-
-    // instr_t* increaseChangedGlobalVarCounter = INSTR_CREATE_inc(drcontext, opnd_create_reg(reg_tmp));
-    // instr_set_translation(increaseChangedGlobalVarCounter, instr_get_app_pc(where));
-    // instrlist_preinsert(ilist, where, increaseChangedGlobalVarCounter);
-
-
-    instr_t* storeCounterToReg = INSTR_CREATE_mov_st(drcontext, opnd_create_abs_addr(&num_global_var_changed, OPSZ_PTR), opnd_create_reg(reg_tmp));
-	instr_set_translation(storeCounterToReg, instr_get_app_pc(where));
-	instrlist_preinsert(ilist, where, storeCounterToReg);
-    // instr_t* increaseChangedGlobalVarCounter = INSTR_CREATE_add(drcontext, opnd_create_abs_addr(&num_global_var_changed, OPSZ_PTR), OPND_CREATE_INT8(1));
-    // instr_set_translation(increaseChangedGlobalVarCounter, instr_get_app_pc(where));
-    // instrlist_preinsert(ilist, where, increaseChangedGlobalVarCounter);
-    
+    instr_t* increaseChangedGlobalVarCounter = INSTR_CREATE_inc(drcontext, opnd_create_abs_addr(&num_global_var_changed, OPSZ_PTR));
+    instr_set_translation(increaseChangedGlobalVarCounter, instr_get_app_pc(where));
+    instrlist_meta_preinsert(ilist, where, increaseChangedGlobalVarCounter);
 
     // ======== global var counter update code done ======
 
