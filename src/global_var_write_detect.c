@@ -6,6 +6,7 @@
 #include "drmgr.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #ifdef WINDOWS
 	#define DISPLAY_STRING(msg) dr_messagebox(msg)
@@ -21,6 +22,7 @@ void *global_var_address;
 int saved_global_var_value;
 static int num_global_var_changed;
 int global_var_change_limit;
+int found_error; // error codes: 0: no error, 1: update limit exceeded
 
 
 // multiple of 6, OPSZ_8
@@ -52,12 +54,6 @@ static void flush_global_history(void *drcontext, void *buf_base, size_t size) {
 	return;
 }
 
-static void globalVarChangeLimitExceeded() {
-
-	dr_printf("Global var change limit exceeded!\n");
-	dr_exit_process(127);
-}
-
 /*
 goal: after memory write, check address value of global variable,
 compare current value with saved global value. if it has changed, log it
@@ -66,8 +62,11 @@ static dr_emit_flags_t after_memory_write(void *drcontext, instrlist_t *ilist, i
 {
 
 
+	if(found_error > 0) {
+		dr_exit_process(127);
+	}
+
 	//dr_printf("%d %d %d\n", saved_global_var_value, *(int*)global_var_address, num_global_var_changed);
-	dr_printf("global funct addr: %p %p\n", globalVarChangeLimitExceeded, *globalVarChangeLimitExceeded);
 	reg_id_t reg_ptr, reg_tmp, reg_flags;
 
 
@@ -148,28 +147,28 @@ static dr_emit_flags_t after_memory_write(void *drcontext, instrlist_t *ilist, i
     instrlist_preinsert(ilist, where, increaseChangedGlobalVarCounter);
 
     // is change limit exceed?
-    // instr_t* isGlobalVarLimitExceeded = INSTR_CREATE_cmp(drcontext, opnd_create_abs_addr(&num_global_var_changed, OPSZ_PTR), OPND_CREATE_INT32(global_var_change_limit));
-    // instr_set_translation(isGlobalVarLimitExceeded, instr_get_app_pc(where));
-    // instrlist_preinsert(ilist, where, isGlobalVarLimitExceeded);
+    instr_t* isGlobalVarLimitExceeded = INSTR_CREATE_cmp(drcontext, opnd_create_abs_addr(&num_global_var_changed, OPSZ_PTR), OPND_CREATE_INT32(global_var_change_limit));
+    instr_set_translation(isGlobalVarLimitExceeded, instr_get_app_pc(where));
+    instrlist_preinsert(ilist, where, isGlobalVarLimitExceeded);
 
-    // instr_t* NotExceedLabel = INSTR_CREATE_label(drcontext);
-    // instr_set_translation(NotExceedLabel, instr_get_app_pc(where));
+    instr_t* NotExceedLabel = INSTR_CREATE_label(drcontext);
+    instr_set_translation(NotExceedLabel, instr_get_app_pc(where));
 
-    // instr_t* jumpIfNotExceed = INSTR_CREATE_jcc(drcontext, OP_jnae, opnd_create_instr(NotExceedLabel));
-    // instr_set_translation(jumpIfNotExceed, instr_get_app_pc(where));
-    // instrlist_preinsert(ilist, where, jumpIfNotExceed);
+    instr_t* jumpIfNotExceed = INSTR_CREATE_jcc(drcontext, OP_jbe, opnd_create_instr(NotExceedLabel));
+    instr_set_translation(jumpIfNotExceed, instr_get_app_pc(where));
+    instrlist_preinsert(ilist, where, jumpIfNotExceed);
 
     // ======= when global var change is exceeded
 
-    instr_t* abortWithCallLimitExceed = INSTR_CREATE_call(drcontext, opnd_create_abs_addr(*globalVarChangeLimitExceeded, OPSZ_PTR));
-    instr_set_translation(abortWithCallLimitExceed, instr_get_app_pc(where));
-    instrlist_preinsert(ilist, where, abortWithCallLimitExceed);
+    instr_t* setErrorFlagToModifyLimitExceeded = INSTR_CREATE_mov_st(drcontext, opnd_create_abs_addr(&found_error, OPSZ_PTR), OPND_CREATE_INT32(1));
+    instr_set_translation(setErrorFlagToModifyLimitExceeded, instr_get_app_pc(where));
+    instrlist_preinsert(ilist, where, setErrorFlagToModifyLimitExceeded);
 
 
 
     // ======= code when global var change is exceeded end
 
-    //instrlist_preinsert(ilist, where, NotExceedLabel);
+    instrlist_preinsert(ilist, where, NotExceedLabel);
 
     // ======== global var counter update code done ======
 
@@ -220,7 +219,6 @@ int glob1 = 0;
 static void event_exit(void) {
 
 
-	dr_printf("num changed: %d\n", num_global_var_changed);
 	// free buffers
 	drx_buf_free(global_history_buf);
 
@@ -233,6 +231,9 @@ static void event_exit(void) {
 	drreg_exit();
 	dr_mutex_destroy(mutex);
 
+	if(found_error == 1) {
+		dr_printf("VARIABLE TAMPERING DETECTED: Modifications limit exceeded\n");
+	}
 
 }
 
