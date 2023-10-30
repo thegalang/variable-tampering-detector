@@ -142,7 +142,7 @@ static dr_emit_flags_t after_memory_write(void *drcontext, instrlist_t *ilist, i
 
     instr_t* increaseChangedGlobalVarCounter = INSTR_CREATE_inc(drcontext, opnd_create_abs_addr(&num_global_var_changed, OPSZ_PTR));
     instr_set_translation(increaseChangedGlobalVarCounter, instr_get_app_pc(where));
-    instrlist_meta_preinsert(ilist, where, increaseChangedGlobalVarCounter);
+    instrlist_preinsert(ilist, where, increaseChangedGlobalVarCounter);
 
     // ======== global var counter update code done ======
 
