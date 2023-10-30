@@ -6,6 +6,7 @@
 #include "drmgr.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #ifdef WINDOWS
 	#define DISPLAY_STRING(msg) dr_messagebox(msg)
@@ -18,8 +19,10 @@
 void *mutex;
 
 void *global_var_address;
-int saved_global_var_value = 69;
-int* saved_global_var_ptr = &saved_global_var_value;
+int saved_global_var_value;
+static int num_global_var_changed;
+int global_var_change_limit;
+int found_error; // error codes: 0: no error, 1: update limit exceeded
 
 
 // multiple of 6, OPSZ_8
@@ -51,6 +54,53 @@ static void flush_global_history(void *drcontext, void *buf_base, size_t size) {
 	return;
 }
 
+static inline void insert_when_global_var_is_modified(void *drcontext, instrlist_t *ilist, instr_t *where, reg_id_t reg_ptr, reg_id_t reg_tmp) {
+
+	// update the saved global value to be the current app's global value
+	instr_t* loadCurrentGlobalVarValue = INSTR_CREATE_mov_ld(drcontext, opnd_create_reg(reg_tmp), opnd_create_abs_addr(global_var_address, OPSZ_PTR));
+    instr_set_translation(loadCurrentGlobalVarValue, instr_get_app_pc(where));
+	instrlist_preinsert(ilist, where, loadCurrentGlobalVarValue);
+
+	instr_t* updateSavedGlobalValue = INSTR_CREATE_mov_st(drcontext, opnd_create_abs_addr(&saved_global_var_value, OPSZ_PTR), opnd_create_reg(reg_tmp));
+    instr_set_translation(updateSavedGlobalValue, instr_get_app_pc(where));
+    instrlist_preinsert(ilist, where, updateSavedGlobalValue);
+
+    instr_t* reloadSavedGlobalVarAddress = INSTR_CREATE_mov_ld(drcontext, opnd_create_reg(reg_tmp), opnd_create_abs_addr(&saved_global_var_value, OPSZ_PTR));
+    instr_set_translation(reloadSavedGlobalVarAddress, instr_get_app_pc(where));
+    instrlist_preinsert(ilist, where, reloadSavedGlobalVarAddress);
+
+    // write the global value in the output log (global value history)
+	drx_buf_insert_load_buf_ptr(drcontext, global_history_buf, ilist, where, reg_ptr);
+	drx_buf_insert_buf_store(drcontext, global_history_buf, ilist, where, reg_ptr, DR_REG_NULL, opnd_create_reg(reg_tmp), OPSZ_8, 0);
+	drx_buf_insert_update_buf_ptr(drcontext, global_history_buf, ilist, where, reg_ptr, reg_tmp, OPSZ_PTR);
+	
+
+	// increase the counter of the number of times the value changes
+    instr_t* increaseChangedGlobalVarCounter = INSTR_CREATE_inc(drcontext, opnd_create_abs_addr(&num_global_var_changed, OPSZ_PTR));
+    instr_set_translation(increaseChangedGlobalVarCounter, instr_get_app_pc(where));
+    instrlist_preinsert(ilist, where, increaseChangedGlobalVarCounter);
+
+    // is change limit exceeded?
+    instr_t* isGlobalVarLimitExceeded = INSTR_CREATE_cmp(drcontext, opnd_create_abs_addr(&num_global_var_changed, OPSZ_PTR), OPND_CREATE_INT32(global_var_change_limit));
+    instr_set_translation(isGlobalVarLimitExceeded, instr_get_app_pc(where));
+    instrlist_preinsert(ilist, where, isGlobalVarLimitExceeded);
+
+    instr_t* NotExceedLabel = INSTR_CREATE_label(drcontext);
+    instr_set_translation(NotExceedLabel, instr_get_app_pc(where));
+
+    instr_t* jumpIfNotExceed = INSTR_CREATE_jcc(drcontext, OP_jbe, opnd_create_instr(NotExceedLabel));
+    instr_set_translation(jumpIfNotExceed, instr_get_app_pc(where));
+    instrlist_preinsert(ilist, where, jumpIfNotExceed);
+
+    // VARIABLE TAMPERING DETECTED: Modifications limit exceeded
+    instr_t* setErrorFlagToModifyLimitExceeded = INSTR_CREATE_mov_st(drcontext, opnd_create_abs_addr(&found_error, OPSZ_PTR), OPND_CREATE_INT32(1));
+    instr_set_translation(setErrorFlagToModifyLimitExceeded, instr_get_app_pc(where));
+    instrlist_preinsert(ilist, where, setErrorFlagToModifyLimitExceeded);
+
+
+    instrlist_preinsert(ilist, where, NotExceedLabel);
+}
+
 /*
 goal: after memory write, check address value of global variable,
 compare current value with saved global value. if it has changed, log it
@@ -59,6 +109,11 @@ static dr_emit_flags_t after_memory_write(void *drcontext, instrlist_t *ilist, i
 {
 
 
+	if(found_error > 0) {
+		dr_exit_process(127);
+	}
+
+	//dr_printf("%d %d %d\n", saved_global_var_value, *(int*)global_var_address, num_global_var_changed);
 	reg_id_t reg_ptr, reg_tmp, reg_flags;
 
 
@@ -74,78 +129,47 @@ static dr_emit_flags_t after_memory_write(void *drcontext, instrlist_t *ilist, i
         return DR_REG_NULL;
     }
 
-    if (drreg_reserve_register(drcontext, ilist, where, NULL, &reg_flags) !=
-        DRREG_SUCCESS) {
-        DR_ASSERT(false);
-        return DR_REG_NULL;
-    }
-
+    
+    // load both current app global var and the saved value in this tool
     instr_t* loadCurrentGlobalVarValue = INSTR_CREATE_mov_ld(drcontext, opnd_create_reg(reg_tmp), opnd_create_abs_addr(global_var_address, OPSZ_PTR));
     instr_set_translation(loadCurrentGlobalVarValue, instr_get_app_pc(where));
+    instrlist_preinsert(ilist, where, loadCurrentGlobalVarValue);
 
-    // if they are different, update occured
     instr_t* loadSavedGlobalValue = INSTR_CREATE_mov_ld(drcontext, opnd_create_reg(reg_ptr), opnd_create_abs_addr(&saved_global_var_value, OPSZ_PTR));
     instr_set_translation(loadSavedGlobalValue, instr_get_app_pc(where));
+    instrlist_preinsert(ilist, where, loadSavedGlobalValue);
 
-    instr_t* isGlobalVarChange = INSTR_CREATE_cmp(drcontext, opnd_create_reg(reg_ptr), opnd_create_reg(reg_tmp));
-    instr_set_translation(isGlobalVarChange, instr_get_app_pc(where));
-
-
-    // compare current value of global address with current value of global variable
     instr_t* saveEflags = INSTR_CREATE_pushf(drcontext);
     instr_set_translation(saveEflags, instr_get_app_pc(where));
+    instrlist_preinsert(ilist, where, saveEflags);
 
-    instr_t* restoreEflags = INSTR_CREATE_popf(drcontext);
-    instr_set_translation(restoreEflags, instr_get_app_pc(where));
-    
-    
-    //dr_printf("saved_global_value_addr %p\n", saved_global_var_ptr);
-    // first load address to a register then create a mov_st with base+dips
-    opnd_t lol = opnd_create_abs_addr(global_var_address, OPSZ_PTR);
-    //dr_printf("value: %d\n", opnd_get_immed_int(lol));
-    instr_t* loadSavedGlobalValueAddress = INSTR_CREATE_mov_ld(drcontext, opnd_create_reg(reg_tmp), lol);
-    instr_set_translation(loadSavedGlobalValueAddress, instr_get_app_pc(where));
-
-    instr_t* updateSavedGlobalValue = INSTR_CREATE_mov_st(drcontext, opnd_create_abs_addr(&saved_global_var_value, OPSZ_PTR), opnd_create_reg(reg_tmp));
-    instr_set_translation(updateSavedGlobalValue, instr_get_app_pc(where));
+    // compare their values. If they are same then ignore the next instructions
+    instr_t* isGlobalVarChange = INSTR_CREATE_cmp(drcontext, opnd_create_reg(reg_ptr), opnd_create_reg(reg_tmp));
+    instr_set_translation(isGlobalVarChange, instr_get_app_pc(where));
+    instrlist_preinsert(ilist, where, isGlobalVarChange);
 
     instr_t* labelContinue = INSTR_CREATE_label(drcontext);
     instr_set_translation(labelContinue, instr_get_app_pc(where));
 
     instr_t* continueIfEqual = INSTR_CREATE_jcc(drcontext, OP_je, opnd_create_instr(labelContinue));
     instr_set_translation(continueIfEqual, instr_get_app_pc(where));
-
-    // insert loadCurrentGlobalVarValue
-    instrlist_preinsert(ilist, where, loadCurrentGlobalVarValue);
-    instrlist_preinsert(ilist, where, loadSavedGlobalValue);
-
-    instrlist_preinsert(ilist, where, saveEflags);
-    instrlist_preinsert(ilist, where, isGlobalVarChange);
     instrlist_preinsert(ilist, where, continueIfEqual);
 
-    // ========= global var changed code ===============
-    instrlist_preinsert(ilist, where, loadSavedGlobalValueAddress);
-    instrlist_preinsert(ilist, where, updateSavedGlobalValue);
+    
+    // if global value has changed, these instructions will check if its a valid change
+    insert_when_global_var_is_modified(drcontext, ilist, where, reg_ptr, reg_tmp);
+     
 
-    instr_t* reloadSavedGlobalVarAddress = INSTR_CREATE_mov_ld(drcontext, opnd_create_reg(reg_tmp), opnd_create_abs_addr(&saved_global_var_value, OPSZ_PTR));
-    instr_set_translation(reloadSavedGlobalVarAddress, instr_get_app_pc(where));
-    instrlist_preinsert(ilist, where, reloadSavedGlobalVarAddress);
-    //instrlist_preinsert(ilist, where, loadSavedGlobalValue); // debug
-
-    // at this moment, reg_tmp has current global var address
-	drx_buf_insert_load_buf_ptr(drcontext, global_history_buf, ilist, where, reg_ptr);
-	drx_buf_insert_buf_store(drcontext, global_history_buf, ilist, where, reg_ptr, DR_REG_NULL, opnd_create_reg(reg_tmp), OPSZ_8, 0);
-	drx_buf_insert_update_buf_ptr(drcontext, global_history_buf, ilist, where, reg_ptr, reg_tmp, OPSZ_PTR);
-	
 	instrlist_preinsert(ilist, where, labelContinue);
 	
-	// ======== global var change completed code
+	
+	instr_t* restoreEflags = INSTR_CREATE_popf(drcontext);
+    instr_set_translation(restoreEflags, instr_get_app_pc(where));
 	instrlist_preinsert(ilist, where, restoreEflags);
 
 	
 	if (drreg_unreserve_register(drcontext, ilist, where, reg_ptr) != DRREG_SUCCESS ||
-	    drreg_unreserve_register(drcontext, ilist, where, reg_tmp) != DRREG_SUCCESS ||
-	    drreg_unreserve_register(drcontext, ilist, where, reg_flags) != DRREG_SUCCESS
+	    drreg_unreserve_register(drcontext, ilist, where, reg_tmp) != DRREG_SUCCESS
 	    )
 		DR_ASSERT(false);
 
@@ -197,6 +221,9 @@ static void event_exit(void) {
 	drreg_exit();
 	dr_mutex_destroy(mutex);
 
+	if(found_error == 1) {
+		dr_printf("VARIABLE TAMPERING DETECTED: Modifications limit exceeded\n");
+	}
 
 }
 
@@ -217,8 +244,10 @@ dr_client_main(client_id_t id, int argc, const char *argv[]) {
 	FILE *configFP = fopen(argv[1], "r");
 	fscanf(configFP, "%p", &global_var_address);
 
-	saved_global_var_value = *(int*)global_var_address;
+	fscanf(configFP, "%d", &global_var_change_limit);
 
+	saved_global_var_value = *(int*)global_var_address;
+	num_global_var_changed = 0;
 
 	// register buffers
 	global_history_buf = drx_buf_create_trace_buffer(HISTORY_BUF_SIZE, flush_global_history);
