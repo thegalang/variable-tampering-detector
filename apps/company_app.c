@@ -12,20 +12,26 @@ int current_user = 0;
 
 struct user users[NUM_USER];
 
+void set_current_user(int current_user_id) {
+	current_user = current_user_id;
+}
 
-int main() {
+void sell_stocks() {
 
-	// initialize user information
-	users[0].user_id = 1;
-	users[0].username = "ceo";
-	users[0].password = "ceo123";
+	if(current_user != 1) {
+		printf("Unauthorized to do this operation\n");
+	} else {
+		printf("Selling all stocks...\n");
+		printf("Transfering money to bank account...\n");
+	}
 
-	users[1].user_id = 1000;
-	users[1].username = "employee";
-	users[1].password = "employee123";
+}
 
-	// login
+void statistics() {
+	printf("displaying analytics...\n");
+}
 
+void login_process() {
 	do {
 
 		char input_username[20], input_password[20];
@@ -44,7 +50,7 @@ int main() {
 			if(strcmp(input_username, users[temp].username) == 0 && 
 			   strcmp(input_password, users[temp].password) == 0) {
 
-				current_user = users[temp].user_id;
+				set_current_user(users[temp].user_id);
 				printf("logged in as %s\n", users[temp].username);
 			}
 		}
@@ -55,6 +61,23 @@ int main() {
 		}
 
 	} while(current_user == 0);
+}
+
+
+int main() {
+
+	// initialize user information
+	users[0].user_id = 1;
+	users[0].username = "ceo";
+	users[0].password = "ceo123";
+
+	users[1].user_id = 1000;
+	users[1].username = "employee";
+	users[1].password = "employee123";
+
+	// login
+	login_process();
+	
 
 	printf("\n\n");
 	fflush(stdout);
@@ -70,16 +93,11 @@ int main() {
 		
 
 		if(strcmp(command, "sell_stocks") == 0) {
-			if(current_user != 1) {
-				printf("Unauthorized to do this operation\n");
-			} else {
-				printf("Selling all stocks...\n");
-				printf("Transfering money to bank account...\n");
-			}
+			sell_stocks();
 		}
 
 		if(strcmp(command, "statistics") == 0) {
-			printf("displaying analytics...\n");
+			statistics();
 		}
 
 		printf("\n\n");
