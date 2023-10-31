@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <dlfcn.h>
 
 int glob1;
 int glob2 = 10;

@@ -4,6 +4,7 @@
 #include "drx.h"
 #include "dr_defines.h"
 #include "drmgr.h"
+#include "drsyms.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -204,7 +205,6 @@ static dr_emit_flags_t bb_instrumentation_analyze(void *drcontext, void *tag, in
 	return DR_EMIT_DEFAULT;
 }
 
-int glob1 = 0;
 
 static void event_exit(void) {
 
@@ -219,6 +219,7 @@ static void event_exit(void) {
 	drx_exit();
 	drutil_exit();
 	drreg_exit();
+	drsym_exit();
 	dr_mutex_destroy(mutex);
 
 	if(found_error == 1) {
@@ -226,6 +227,7 @@ static void event_exit(void) {
 	}
 
 }
+
 
 DR_EXPORT void
 dr_client_main(client_id_t id, int argc, const char *argv[]) {
@@ -235,6 +237,7 @@ dr_client_main(client_id_t id, int argc, const char *argv[]) {
 	drutil_init();
 	drreg_options_t ops = {sizeof(ops), 4, false};
 	drreg_init(&ops);
+	drsym_init(0);
 
 	if(argc < 2) {
 		dr_printf("config file args missing");
@@ -242,12 +245,20 @@ dr_client_main(client_id_t id, int argc, const char *argv[]) {
 	}
 
 	FILE *configFP = fopen(argv[1], "r");
-	fscanf(configFP, "%p", &global_var_address);
+
+	// read global var name and get its address
+	char globalVarName[100]; memset(globalVarName, 0, sizeof(globalVarName));
+	fscanf(configFP, "%s", globalVarName);
+
+	// register event to search for global var symbol
+	//drmgr_register_module_load_event(module_load_event);
+
+	module_data_t* main_module = dr_get_main_module();
+	global_var_address = dr_get_proc_address(main_module->handle, globalVarName);
+    saved_global_var_value = *(int*)global_var_address;
+	num_global_var_changed = 0;
 
 	fscanf(configFP, "%d", &global_var_change_limit);
-
-	saved_global_var_value = *(int*)global_var_address;
-	num_global_var_changed = 0;
 
 	// register buffers
 	global_history_buf = drx_buf_create_trace_buffer(HISTORY_BUF_SIZE, flush_global_history);
