@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <dlfcn.h>
 
 #ifdef WINDOWS
 	#define DISPLAY_STRING(msg) dr_messagebox(msg)
@@ -242,7 +243,15 @@ dr_client_main(client_id_t id, int argc, const char *argv[]) {
 	}
 
 	FILE *configFP = fopen(argv[1], "r");
-	fscanf(configFP, "%p", &global_var_address);
+
+	// read global var name and get its address
+	char globalVarName[100]; memset(globalVarName, 0, sizeof(globalVarName));
+	fscanf(configFP, "%s", globalVarName);
+	dr_printf("%s\n", globalVarName);
+	void *hdl;
+	hdl = dlopen(NULL, 0);
+	global_var_address = dlsym(hdl, "glob1");
+	printf("global var address: %p\n", global_var_address);
 
 	fscanf(configFP, "%d", &global_var_change_limit);
 
