@@ -27,8 +27,26 @@ void sell_stocks() {
 
 }
 
-void statistics() {
-	printf("displaying analytics...\n");
+// read print format from stat_fmt.txt and then print data stored in ebitda.txt according to format
+void print_ebitda() {
+
+	FILE *fp = fopen("stat_fmt.txt", "r");
+	char statfmt[40];
+	fscanf(fp, "%s", statfmt);
+
+	char *ebitdaNumberFmt = "%d";
+
+	char ebitdaDisplayFmt[50];
+	sprintf(ebitdaDisplayFmt, "%s %s\n", statfmt, ebitdaNumberFmt);
+
+
+	FILE *ebitdaFP = fopen("ebitda.txt", "r");
+	printf("Last four quarters EBITDA (in thousands of dollars):\n");
+	for(int temp=0;temp<4;temp++) {
+		int quarterEbitda;
+		fscanf(ebitdaFP, "%d", &quarterEbitda);
+		printf(ebitdaDisplayFmt, quarterEbitda);
+	}
 }
 
 void login_process() {
@@ -96,8 +114,10 @@ int main() {
 			sell_stocks();
 		}
 
-		if(strcmp(command, "statistics") == 0) {
-			statistics();
+		else if(strcmp(command, "print_ebitda") == 0) {
+			print_ebitda();
+		} else {
+			printf("command not found!\n");
 		}
 
 		printf("\n\n");
