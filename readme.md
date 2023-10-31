@@ -25,6 +25,9 @@ then run the tool
 $DynamoPATH -c ../build/libglobal_var_write_detect.so -- bin/global_write
 ```
 
+# Fetching Global Var Address from Name
+
+Can be done using dlopen/dlsym: https://stackoverflow.com/questions/11254891/can-a-running-c-program-access-its-own-symbol-table
 
 # DynamoRIO API Reference:
 
