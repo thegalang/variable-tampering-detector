@@ -32,7 +32,12 @@ void print_ebitda() {
 
 	FILE *fp = fopen("stat_fmt.txt", "r");
 	char statfmt[40];
-	fscanf(fp, "%s", statfmt);
+	
+	// read the whole file
+	fseek(fp, 0, SEEK_END);
+	long fsize = ftell(fp);
+	fseek(fp, 0, SEEK_SET); 
+	fread(statfmt, fsize, 1, fp);
 
 	char *ebitdaNumberFmt = "%d";
 
