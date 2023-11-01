@@ -25,7 +25,6 @@ then run the tool
 $DynamoPATH -c ../build/libglobal_var_write_detect.so -- bin/global_write
 ```
 
-
 # DynamoRIO API Reference:
 
 DynamoRIO gives instruction in binary (instr_t), and its source, destination, and opcode is encoded using opnd_t.
@@ -39,4 +38,6 @@ DynamoRIO gives instruction in binary (instr_t), and its source, destination, an
 4. Encoding and decoding new instructions: https://dynamorio.org/API_BT.html#sec_decode
 
 5. Utils, main functionality: https://dynamorio.org/group__drutil.html
+
+6. Fetching global variable/function addresses from their names: https://dynamorio.org/page_drsyms.html
 
