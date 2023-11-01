@@ -10,9 +10,13 @@ struct user {
 
 int current_user = 0;
 
+int isLoggedIn = 0;
+
 struct user users[NUM_USER];
 
-void set_current_user(int current_user_id) {
+void set_current_user_id(int current_user_id) {
+	int temp = current_user_id;
+	int y;
 	current_user = current_user_id;
 }
 
@@ -23,6 +27,7 @@ void sell_stocks() {
 	} else {
 		printf("Selling all stocks...\n");
 		printf("Transfering money to bank account...\n");
+		printf("Transfer completed!\n");
 	}
 
 }
@@ -70,11 +75,13 @@ void login_process() {
 		fflush(stdout);
 
 		for(int temp=0;temp<NUM_USER; temp++) {
+
 			if(strcmp(input_username, users[temp].username) == 0 && 
 			   strcmp(input_password, users[temp].password) == 0) {
 
-				set_current_user(users[temp].user_id);
-				printf("logged in as %s\n", users[temp].username);
+				set_current_user_id(users[temp].user_id);
+				
+				printf("Logged in as %s\n", users[temp].username);
 			}
 		}
 
@@ -94,7 +101,7 @@ int main() {
 	users[0].username = "ceo";
 	users[0].password = "ceo123";
 
-	users[1].user_id = 1000;
+	users[1].user_id = 2;
 	users[1].username = "employee";
 	users[1].password = "employee123";
 
