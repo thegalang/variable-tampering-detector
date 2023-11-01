@@ -25,6 +25,11 @@ then run the tool
 $DynamoPATH -c ../build/libglobal_var_write_detect.so -- bin/global_write
 ```
 
+# Known bugs
+
+- [] Functions that only translates to one line in assembly wont be executed inside the dynamorio tool. For example: void hello(int x) { y = x; }
+- [] Smashing the stack in x64 will cause all printf functions to get SIGSEV
+
 # DynamoRIO API Reference:
 
 DynamoRIO gives instruction in binary (instr_t), and its source, destination, and opcode is encoded using opnd_t.
@@ -40,4 +45,3 @@ DynamoRIO gives instruction in binary (instr_t), and its source, destination, an
 5. Utils, main functionality: https://dynamorio.org/group__drutil.html
 
 6. Fetching global variable/function addresses from their names: https://dynamorio.org/page_drsyms.html
-
