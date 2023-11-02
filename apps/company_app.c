@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #define NUM_USER 2
 struct user {
@@ -95,6 +96,9 @@ void login_process() {
 
 
 int main() {
+
+	// getting relevant address for ROP exploits...
+	//printf("%p %p\n", set_current_user_id, sell_stocks);
 
 	// initialize user information
 	users[0].user_id = 1;

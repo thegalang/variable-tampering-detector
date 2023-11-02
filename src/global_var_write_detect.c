@@ -55,6 +55,14 @@ static void flush_global_history(void *drcontext, void *buf_base, size_t size) {
 	return;
 }
 
+static inline void insert_terminate_instr(void *drcontext, instrlist_t *ilist, instr_t *where) {
+
+	printf("exit addr: %p\n", exit);
+	instr_t* crashProgram = INSTR_CREATE_jmp(drcontext, OPND_CREATE_INTPTR(*exit));
+    instr_set_translation(crashProgram, instr_get_app_pc(where));
+	instrlist_preinsert(ilist, where, crashProgram);
+} 
+
 static inline void insert_when_global_var_is_modified(void *drcontext, instrlist_t *ilist, instr_t *where, reg_id_t reg_ptr, reg_id_t reg_tmp) {
 
 	// update the saved global value to be the current app's global value
@@ -97,6 +105,9 @@ static inline void insert_when_global_var_is_modified(void *drcontext, instrlist
     instr_t* setErrorFlagToModifyLimitExceeded = INSTR_CREATE_mov_st(drcontext, opnd_create_abs_addr(&found_error, OPSZ_PTR), OPND_CREATE_INT32(1));
     instr_set_translation(setErrorFlagToModifyLimitExceeded, instr_get_app_pc(where));
     instrlist_preinsert(ilist, where, setErrorFlagToModifyLimitExceeded);
+
+    // terminte program
+    insert_terminate_instr(drcontext, ilist, where);
 
 
     instrlist_preinsert(ilist, where, NotExceedLabel);
