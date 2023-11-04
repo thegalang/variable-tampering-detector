@@ -130,6 +130,17 @@ static dr_emit_flags_t after_memory_write(void *drcontext, instrlist_t *ilist, i
         return DR_REG_NULL;
     }
 
+    if (drreg_reserve_register(drcontext, ilist, where, NULL, &reg_flags) !=
+        DRREG_SUCCESS) {
+        DR_ASSERT(false);
+        return DR_REG_NULL;
+    }
+
+
+    // save app AH
+    instr_t* saveAh = INSTR_CREATE_mov_ld(drcontext, opnd_create_reg(reg_flags), opnd_create_reg(DR_REG_AH));
+    instr_set_translation(saveAh, instr_get_app_pc(where));
+    instrlist_preinsert(ilist, where, saveAh);
     
     // load both current app global var and the saved value in this tool
     instr_t* loadCurrentGlobalVarValue = INSTR_CREATE_mov_ld(drcontext, opnd_create_reg(reg_tmp), opnd_create_abs_addr(global_var_address, OPSZ_PTR));
@@ -140,7 +151,7 @@ static dr_emit_flags_t after_memory_write(void *drcontext, instrlist_t *ilist, i
     instr_set_translation(loadSavedGlobalValue, instr_get_app_pc(where));
     instrlist_preinsert(ilist, where, loadSavedGlobalValue);
 
-    instr_t* saveEflags = INSTR_CREATE_pushf(drcontext);
+    instr_t* saveEflags = INSTR_CREATE_lahf(drcontext);
     instr_set_translation(saveEflags, instr_get_app_pc(where));
     instrlist_preinsert(ilist, where, saveEflags);
 
@@ -164,9 +175,13 @@ static dr_emit_flags_t after_memory_write(void *drcontext, instrlist_t *ilist, i
 	instrlist_preinsert(ilist, where, labelContinue);
 	
 	
-	instr_t* restoreEflags = INSTR_CREATE_popf(drcontext);
+	instr_t* restoreEflags = INSTR_CREATE_sahf(drcontext);
     instr_set_translation(restoreEflags, instr_get_app_pc(where));
 	instrlist_preinsert(ilist, where, restoreEflags);
+
+	instr_t* restoreAh = INSTR_CREATE_mov_ld(drcontext, opnd_create_reg(DR_REG_AH), opnd_create_reg(reg_flags));
+    instr_set_translation(restoreAh, instr_get_app_pc(where));
+    instrlist_preinsert(ilist, where, restoreAh);
 
 	
 	if (drreg_unreserve_register(drcontext, ilist, where, reg_ptr) != DRREG_SUCCESS ||
@@ -174,6 +189,9 @@ static dr_emit_flags_t after_memory_write(void *drcontext, instrlist_t *ilist, i
 	    )
 		DR_ASSERT(false);
 
+	if(drreg_unreserve_register(drcontext, ilist, where, reg_flags) != DRREG_SUCCESS) {
+		DR_ASSERT(false);
+	}
 	return DR_EMIT_DEFAULT;
 
 
