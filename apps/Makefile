@@ -5,7 +5,7 @@ OUT = company_app.out global_write.out
 
 all: global_write.out company_app.out
 
-global_write.out: global_write.cpp
+global_write.out: global_write.c
 	$(CC) $(CFLAGS) $< -o $@
 
 company_app.out: company_app.c
