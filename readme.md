@@ -35,13 +35,13 @@ For easier and consistent result, disable ASLR.
 
 Two available credentials to login into the app:
 
-CEO
-username: ceo
-password: ceo123
+CEO  
+username: ceo  
+password: ceo123  
 
-Employee
-username: employee
-password: employee123
+Employee  
+username: employee  
+password: employee123  
 
 CEO can do both sell_stocks and print_ebitda, while employee can only do print_ebitda.
 
@@ -90,8 +90,8 @@ Proof of concept screenshot:
 
 # Known bugs
 
-- [] Functions that only translates to one line in assembly wont be executed inside the dynamorio tool. For example: void hello(int x) { y = x; }
-- [] Smashing the stack in x64 will cause all printf functions to get SIGSEV
+- [ ] Functions that only translates to one line in assembly wont be executed inside the dynamorio tool. For example: void hello(int x) { y = x; }
+- [ ] Smashing the stack in x64 will cause all printf functions to get SIGSEV
 
 # DynamoRIO API Reference:
 
