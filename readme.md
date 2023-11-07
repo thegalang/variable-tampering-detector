@@ -60,12 +60,15 @@ You can then try to login using CEO and verify you can sell_stocks and print_ebi
 
 In this exploit, we will use buffer overflow vulnerability in `print_ebitda` and ROP technique to corrupt the `current_user_id` variable of the binary. 
 
+### Set up
+
 We modify the return address so after `print_ebitda` , `set_current_user_id(1)` is called (CEO user_id). Then, `sell_stocks` is called.
 
 Since this is an x64 architecture, arguments are stored in the `rdi` register, so we also need the `pop $rdi` gadget to set its value. 
 
 There is a function `stat_fmts/rop_exploit_app/payload_builder.c` available to build the payload. Get the address of `set_current_user_id`, `sell_stocks`, and `pop rdi` gadget and insert it into the appropriate variable.
 
+### Run Without Tool
 To run the exploit without the tool, run:
 ```
 bash run_rop_exploit.sh
@@ -73,6 +76,7 @@ bash run_rop_exploit.sh
 
 Then login as `employee` and do `print_ebitda`. You will that sell_stocks will be successfull.
 
+### Run With Tool
 
 To run the exploit with our tool, first compile the tool with `bash build_tool.sh` in root directory. Then in `apps` directory, run:
 
@@ -84,7 +88,7 @@ After logging in as `employee` and do `print_ebitda`, the tool will detct variab
 
 Note that the addresses of functions and variables will be different when running in app and in dynamorio, so you need to also get these addresses when running from dynamorio. Both can be obtained by running inside gdb.
 
-Proof of concept screenshot:
+### Proof of Concept
 
 ![](https://files.catbox.moe/p7trov.png)
 
