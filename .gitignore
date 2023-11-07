@@ -2,3 +2,4 @@ build/
 */bin/*
 */*.so
 */*.out
+apps/stat_fmt.txt
