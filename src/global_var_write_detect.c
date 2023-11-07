@@ -55,12 +55,12 @@ static void flush_global_history(void *drcontext, void *buf_base, size_t size) {
 	return;
 }
 
-static inline void insert_terminate_instr(void *drcontext, instrlist_t *ilist, instr_t *where) {
+static inline void terminate_with_error(int error_code) {
 
-	printf("exit addr: %p\n", exit);
-	instr_t* crashProgram = INSTR_CREATE_jmp(drcontext, OPND_CREATE_INTPTR(*exit));
-    instr_set_translation(crashProgram, instr_get_app_pc(where));
-	instrlist_preinsert(ilist, where, crashProgram);
+
+	found_error = error_code;
+	dr_exit_process(127);
+	
 } 
 
 static inline void insert_when_global_var_is_modified(void *drcontext, instrlist_t *ilist, instr_t *where, reg_id_t reg_ptr, reg_id_t reg_tmp) {
@@ -109,13 +109,15 @@ static inline void insert_when_global_var_is_modified(void *drcontext, instrlist
     instrlist_preinsert(ilist, where, jumpIfNotExceed);
 
     // VARIABLE TAMPERING DETECTED: Modifications limit exceeded
-    instr_t* setErrorFlagToModifyLimitExceeded = INSTR_CREATE_mov_st(drcontext, opnd_create_abs_addr(&found_error, OPSZ_PTR), OPND_CREATE_INT32(1));
-    instr_set_app(setErrorFlagToModifyLimitExceeded);
-    instr_set_translation(setErrorFlagToModifyLimitExceeded, instr_get_app_pc(where));
-    instrlist_preinsert(ilist, where, setErrorFlagToModifyLimitExceeded);
+    dr_insert_clean_call(drcontext, ilist, where, terminate_with_error, false, 1, OPND_CREATE_INT32(1));
+
+    // instr_t* setErrorFlagToModifyLimitExceeded = INSTR_CREATE_mov_st(drcontext, opnd_create_abs_addr(&found_error, OPSZ_PTR), OPND_CREATE_INT32(1));
+    // instr_set_app(setErrorFlagToModifyLimitExceeded);
+    // instr_set_translation(setErrorFlagToModifyLimitExceeded, instr_get_app_pc(where));
+    // instrlist_preinsert(ilist, where, setErrorFlagToModifyLimitExceeded);
 
     // terminte program
-    //insert_terminate_instr(drcontext, ilist, where);
+    //insert_terminate_instr(drcontext, ilist, where, reg_tmp, reg_ptr);
 
 
     instrlist_preinsert(ilist, where, NotExceedLabel);
@@ -127,11 +129,6 @@ compare current value with saved global value. if it has changed, log it
 */
 static dr_emit_flags_t after_memory_write(void *drcontext, instrlist_t *ilist, instr_t *where)
 {
-
-
-	if(found_error > 0) {
-		dr_exit_process(127);
-	}
 
 	//dr_printf("%d %d %d\n", saved_global_var_value, *(int*)global_var_address, num_global_var_changed);
 	reg_id_t reg_ptr, reg_tmp, reg_flags;
@@ -279,11 +276,8 @@ dr_client_main(client_id_t id, int argc, const char *argv[]) {
 	// register event to search for global var symbol
 	//drmgr_register_module_load_event(module_load_event);
 
-	dr_printf("MASHOK PAK EKO %s\n", globalVarName);
-
 	module_data_t* main_module = dr_get_main_module();
 	global_var_address = dr_get_proc_address(main_module->handle, globalVarName);
-	dr_printf("=== glob1 address: %p %s\n", global_var_address, main_module->handle);
     saved_global_var_value = *(int*)global_var_address;
 	num_global_var_changed = 0;
 
