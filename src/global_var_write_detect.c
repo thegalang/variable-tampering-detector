@@ -55,18 +55,29 @@ static void flush_global_history(void *drcontext, void *buf_base, size_t size) {
 	return;
 }
 
+static inline void terminate_with_error(int error_code) {
+
+
+	found_error = error_code;
+	dr_exit_process(127);
+	
+} 
+
 static inline void insert_when_global_var_is_modified(void *drcontext, instrlist_t *ilist, instr_t *where, reg_id_t reg_ptr, reg_id_t reg_tmp) {
 
 	// update the saved global value to be the current app's global value
 	instr_t* loadCurrentGlobalVarValue = INSTR_CREATE_mov_ld(drcontext, opnd_create_reg(reg_tmp), opnd_create_abs_addr(global_var_address, OPSZ_PTR));
+    instr_set_app(loadCurrentGlobalVarValue);
     instr_set_translation(loadCurrentGlobalVarValue, instr_get_app_pc(where));
 	instrlist_preinsert(ilist, where, loadCurrentGlobalVarValue);
 
 	instr_t* updateSavedGlobalValue = INSTR_CREATE_mov_st(drcontext, opnd_create_abs_addr(&saved_global_var_value, OPSZ_PTR), opnd_create_reg(reg_tmp));
+    instr_set_app(updateSavedGlobalValue);
     instr_set_translation(updateSavedGlobalValue, instr_get_app_pc(where));
     instrlist_preinsert(ilist, where, updateSavedGlobalValue);
 
     instr_t* reloadSavedGlobalVarAddress = INSTR_CREATE_mov_ld(drcontext, opnd_create_reg(reg_tmp), opnd_create_abs_addr(&saved_global_var_value, OPSZ_PTR));
+    instr_set_app(reloadSavedGlobalVarAddress);
     instr_set_translation(reloadSavedGlobalVarAddress, instr_get_app_pc(where));
     instrlist_preinsert(ilist, where, reloadSavedGlobalVarAddress);
 
@@ -78,25 +89,35 @@ static inline void insert_when_global_var_is_modified(void *drcontext, instrlist
 
 	// increase the counter of the number of times the value changes
     instr_t* increaseChangedGlobalVarCounter = INSTR_CREATE_inc(drcontext, opnd_create_abs_addr(&num_global_var_changed, OPSZ_PTR));
+    instr_set_app(increaseChangedGlobalVarCounter);
     instr_set_translation(increaseChangedGlobalVarCounter, instr_get_app_pc(where));
     instrlist_preinsert(ilist, where, increaseChangedGlobalVarCounter);
 
     // is change limit exceeded?
     instr_t* isGlobalVarLimitExceeded = INSTR_CREATE_cmp(drcontext, opnd_create_abs_addr(&num_global_var_changed, OPSZ_PTR), OPND_CREATE_INT32(global_var_change_limit));
+    instr_set_app(isGlobalVarLimitExceeded);
     instr_set_translation(isGlobalVarLimitExceeded, instr_get_app_pc(where));
     instrlist_preinsert(ilist, where, isGlobalVarLimitExceeded);
 
     instr_t* NotExceedLabel = INSTR_CREATE_label(drcontext);
+    instr_set_app(NotExceedLabel);
     instr_set_translation(NotExceedLabel, instr_get_app_pc(where));
 
     instr_t* jumpIfNotExceed = INSTR_CREATE_jcc(drcontext, OP_jbe, opnd_create_instr(NotExceedLabel));
+    instr_set_app(jumpIfNotExceed);
     instr_set_translation(jumpIfNotExceed, instr_get_app_pc(where));
     instrlist_preinsert(ilist, where, jumpIfNotExceed);
 
     // VARIABLE TAMPERING DETECTED: Modifications limit exceeded
-    instr_t* setErrorFlagToModifyLimitExceeded = INSTR_CREATE_mov_st(drcontext, opnd_create_abs_addr(&found_error, OPSZ_PTR), OPND_CREATE_INT32(1));
-    instr_set_translation(setErrorFlagToModifyLimitExceeded, instr_get_app_pc(where));
-    instrlist_preinsert(ilist, where, setErrorFlagToModifyLimitExceeded);
+    dr_insert_clean_call(drcontext, ilist, where, terminate_with_error, false, 1, OPND_CREATE_INT32(1));
+
+    // instr_t* setErrorFlagToModifyLimitExceeded = INSTR_CREATE_mov_st(drcontext, opnd_create_abs_addr(&found_error, OPSZ_PTR), OPND_CREATE_INT32(1));
+    // instr_set_app(setErrorFlagToModifyLimitExceeded);
+    // instr_set_translation(setErrorFlagToModifyLimitExceeded, instr_get_app_pc(where));
+    // instrlist_preinsert(ilist, where, setErrorFlagToModifyLimitExceeded);
+
+    // terminte program
+    //insert_terminate_instr(drcontext, ilist, where, reg_tmp, reg_ptr);
 
 
     instrlist_preinsert(ilist, where, NotExceedLabel);
@@ -108,11 +129,6 @@ compare current value with saved global value. if it has changed, log it
 */
 static dr_emit_flags_t after_memory_write(void *drcontext, instrlist_t *ilist, instr_t *where)
 {
-
-
-	if(found_error > 0) {
-		dr_exit_process(127);
-	}
 
 	//dr_printf("%d %d %d\n", saved_global_var_value, *(int*)global_var_address, num_global_var_changed);
 	reg_id_t reg_ptr, reg_tmp, reg_flags;
@@ -133,26 +149,32 @@ static dr_emit_flags_t after_memory_write(void *drcontext, instrlist_t *ilist, i
     
     // load both current app global var and the saved value in this tool
     instr_t* loadCurrentGlobalVarValue = INSTR_CREATE_mov_ld(drcontext, opnd_create_reg(reg_tmp), opnd_create_abs_addr(global_var_address, OPSZ_PTR));
+    instr_set_app(loadCurrentGlobalVarValue);
     instr_set_translation(loadCurrentGlobalVarValue, instr_get_app_pc(where));
     instrlist_preinsert(ilist, where, loadCurrentGlobalVarValue);
 
     instr_t* loadSavedGlobalValue = INSTR_CREATE_mov_ld(drcontext, opnd_create_reg(reg_ptr), opnd_create_abs_addr(&saved_global_var_value, OPSZ_PTR));
+    instr_set_app(loadSavedGlobalValue);
     instr_set_translation(loadSavedGlobalValue, instr_get_app_pc(where));
     instrlist_preinsert(ilist, where, loadSavedGlobalValue);
 
     instr_t* saveEflags = INSTR_CREATE_pushf(drcontext);
+    instr_set_app(saveEflags);
     instr_set_translation(saveEflags, instr_get_app_pc(where));
     instrlist_preinsert(ilist, where, saveEflags);
 
     // compare their values. If they are same then ignore the next instructions
     instr_t* isGlobalVarChange = INSTR_CREATE_cmp(drcontext, opnd_create_reg(reg_ptr), opnd_create_reg(reg_tmp));
+    instr_set_app(isGlobalVarChange);
     instr_set_translation(isGlobalVarChange, instr_get_app_pc(where));
     instrlist_preinsert(ilist, where, isGlobalVarChange);
 
     instr_t* labelContinue = INSTR_CREATE_label(drcontext);
+    instr_set_app(labelContinue);
     instr_set_translation(labelContinue, instr_get_app_pc(where));
 
     instr_t* continueIfEqual = INSTR_CREATE_jcc(drcontext, OP_je, opnd_create_instr(labelContinue));
+    instr_set_app(continueIfEqual);
     instr_set_translation(continueIfEqual, instr_get_app_pc(where));
     instrlist_preinsert(ilist, where, continueIfEqual);
 
@@ -165,6 +187,7 @@ static dr_emit_flags_t after_memory_write(void *drcontext, instrlist_t *ilist, i
 	
 	
 	instr_t* restoreEflags = INSTR_CREATE_popf(drcontext);
+    instr_set_app(restoreEflags);
     instr_set_translation(restoreEflags, instr_get_app_pc(where));
 	instrlist_preinsert(ilist, where, restoreEflags);
 
@@ -257,6 +280,8 @@ dr_client_main(client_id_t id, int argc, const char *argv[]) {
 	global_var_address = dr_get_proc_address(main_module->handle, globalVarName);
     saved_global_var_value = *(int*)global_var_address;
 	num_global_var_changed = 0;
+
+	
 
 	fscanf(configFP, "%d", &global_var_change_limit);
 

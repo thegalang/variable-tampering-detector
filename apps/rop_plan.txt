@@ -1,0 +1,9 @@
+0x000000000005b522 : mov eax, edi ; ret
+0x000000000011f7d7 : mov r8d, eax ; mov eax, r8d ; ret
+0x000000000013f091 : mov edx, eax ; mov byte ptr [r10], 0 ; ret
+
+
+0x0000555555555573 return here
+call set_current_user
+1
+0x0000000000023b6a : pop rdi ; ret
