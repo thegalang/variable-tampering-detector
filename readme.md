@@ -13,17 +13,80 @@ A folder `build` should be created alongside with the compiled tools.
 
 `apps` folder is the test apps we used tools on. First compile the app
 
-(TODO MAKEFILE)
 
 ```
-gcc global_write.cpp -o bin/global_write
+cd apps
+make
 ```
 
 then run the tool 
 
 ```
-$DynamoPATH -c ../build/libglobal_var_write_detect.so -- bin/global_write
+$DynamoPATH -c ../build/libglobal_var_write_detect.so global_write_config -- bin/global_write
 ```
+
+# Running Tools on vulnerable program
+
+In this section, we will do experiment to see how our tool prevents malicious programs to corrupt variables of a binary from the program `company_app.c`. All apps are in the `apps` folder.
+
+For easier and consistent result, disable ASLR.
+
+## Credentials
+
+Two available credentials to login into the app:
+
+CEO
+username: ceo
+password: ceo123
+
+Employee
+username: employee
+password: employee123
+
+CEO can do both sell_stocks and print_ebitda, while employee can only do print_ebitda.
+
+
+## Normal Execution
+
+This is the "expected" behaviour of the program without any exploits
+
+```
+bash run_normal_program.sh
+```
+
+You can then try to login using CEO and verify you can sell_stocks and print_ebitda. Then login to employee account and can only print_ebitda
+
+## ROP Exploit
+
+In this exploit, we will use buffer overflow vulnerability in `print_ebitda` and ROP technique to corrupt the `current_user_id` variable of the binary. 
+
+We modify the return address so after `print_ebitda` , `set_current_user_id(1)` is called (CEO user_id). Then, `sell_stocks` is called.
+
+Since this is an x64 architecture, arguments are stored in the `rdi` register, so we also need the `pop $rdi` gadget to set its value. 
+
+There is a function `stat_fmts/rop_exploit_app/payload_builder.c` available to build the payload. Get the address of `set_current_user_id`, `sell_stocks`, and `pop rdi` gadget and insert it into the appropriate variable.
+
+To run the exploit without the tool, run:
+```
+bash run_rop_exploit.sh
+``` 
+
+Then login as `employee` and do `print_ebitda`. You will that sell_stocks will be successfull.
+
+
+To run the exploit with our tool, first compile the tool with `bash build_tool.sh` in root directory. Then in `apps` directory, run:
+
+```
+bash run_rop_wtool.sh
+```
+
+After logging in as `employee` and do `print_ebitda`, the tool will detct variable tampering and terminate the program. 
+
+Note that the addresses of functions and variables will be different when running in app and in dynamorio, so you need to also get these addresses when running from dynamorio. Both can be obtained by running inside gdb.
+
+Proof of concept screenshot:
+
+![](https://files.catbox.moe/p7trov.png)
 
 # Known bugs
 
