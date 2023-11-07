@@ -17,5 +17,6 @@ int main() {
 	glob1 = 7766;
 
 	glob2 = glob1 * 20;
+
 	printf("%d %d %016llx %016llx\n", glob1, glob2, &glob1, &glob2);
 }
