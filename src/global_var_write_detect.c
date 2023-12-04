@@ -20,6 +20,9 @@
 void *mutex;
 
 void *global_var_address;
+void *authorized_function_address;
+void *authorized_function_end_address;
+
 int saved_global_var_value;
 static int num_global_var_changed;
 int global_var_change_limit;
@@ -86,6 +89,13 @@ static inline void insert_when_global_var_is_modified(void *drcontext, instrlist
 	drx_buf_insert_buf_store(drcontext, global_history_buf, ilist, where, reg_ptr, DR_REG_NULL, opnd_create_reg(reg_tmp), OPSZ_8, 0);
 	drx_buf_insert_update_buf_ptr(drcontext, global_history_buf, ilist, where, reg_ptr, reg_tmp, OPSZ_PTR);
 	
+	// is changed in unauthorized_function?
+	// currently BUGGY as will cause runtime error
+	// void* cur_pc = instr_get_app_pc(where);
+	// dr_printf("debug %p %p %p\n", cur_pc, authorized_function_address, authorized_function_end_address);
+	// if(cur_pc < authorized_function_address || cur_pc > authorized_function_end_address) {
+	// 	 dr_insert_clean_call(drcontext, ilist, where, terminate_with_error, false, 2, OPND_CREATE_INT32(1));	
+	// }
 
 	// increase the counter of the number of times the value changes
     instr_t* increaseChangedGlobalVarCounter = INSTR_CREATE_inc(drcontext, opnd_create_abs_addr(&num_global_var_changed, OPSZ_PTR));
@@ -110,15 +120,6 @@ static inline void insert_when_global_var_is_modified(void *drcontext, instrlist
 
     // VARIABLE TAMPERING DETECTED: Modifications limit exceeded
     dr_insert_clean_call(drcontext, ilist, where, terminate_with_error, false, 1, OPND_CREATE_INT32(1));
-
-    // instr_t* setErrorFlagToModifyLimitExceeded = INSTR_CREATE_mov_st(drcontext, opnd_create_abs_addr(&found_error, OPSZ_PTR), OPND_CREATE_INT32(1));
-    // instr_set_app(setErrorFlagToModifyLimitExceeded);
-    // instr_set_translation(setErrorFlagToModifyLimitExceeded, instr_get_app_pc(where));
-    // instrlist_preinsert(ilist, where, setErrorFlagToModifyLimitExceeded);
-
-    // terminte program
-    //insert_terminate_instr(drcontext, ilist, where, reg_tmp, reg_ptr);
-
 
     instrlist_preinsert(ilist, where, NotExceedLabel);
 }
@@ -249,6 +250,19 @@ static void event_exit(void) {
 		dr_printf("VARIABLE TAMPERING DETECTED: Modifications limit exceeded\n");
 	}
 
+	if(found_error == 2) {
+		dr_printf("VARIABLE TAMPERING DETECTED: Unauthorized Modification\n");
+	}
+}
+
+static void* get_function_end_address(void* start) {
+
+	char* charPtr = (char*) start;
+	while((*charPtr & 0xff) != 0xc3) {
+		charPtr++;
+	}
+
+	return charPtr;
 }
 
 
@@ -281,9 +295,13 @@ dr_client_main(client_id_t id, int argc, const char *argv[]) {
     saved_global_var_value = *(int*)global_var_address;
 	num_global_var_changed = 0;
 
-	
-
 	fscanf(configFP, "%d", &global_var_change_limit);
+
+	char authorizedFunctionName[100]; memset(authorizedFunctionName, 0, sizeof(authorizedFunctionName));
+	fscanf(configFP, "%s", authorizedFunctionName);
+	authorized_function_address = dr_get_proc_address(main_module->handle, authorizedFunctionName);
+	authorized_function_end_address = get_function_end_address(authorized_function_address);
+	//dr_printf("start: %p, end: %p\n", authorized_function_address, authorized_function_end_address);
 
 	// register buffers
 	global_history_buf = drx_buf_create_trace_buffer(HISTORY_BUF_SIZE, flush_global_history);
