@@ -21,41 +21,6 @@ void set_current_user_id(int current_user_id) {
 	current_user = current_user_id;
 }
 
-void change_user() {
-	current_user = 0;
-	do {
-
-		char input_username[20], input_password[20];
-
-		printf("enter username: ");
-		fflush(stdout);
-		scanf("%s", input_username);
-
-		printf("enter password: ");
-		fflush(stdout);
-		scanf("%s", input_password);
-
-		fflush(stdout);
-
-		for(int temp=0;temp<NUM_USER; temp++) {
-
-			if(strcmp(input_username, users[temp].username) == 0 && 
-			   strcmp(input_password, users[temp].password) == 0) {
-
-				set_current_user_id(users[temp].user_id);
-				
-				printf("Logged in as %s\n", users[temp].username);
-			}
-		}
-
-		if(current_user == 0) {
-
-			printf("invalid username or password\n");
-		}
-
-	} while(current_user == 0);
-}
-
 void sell_stocks() {
 
 	if(current_user != 1) {
@@ -129,6 +94,11 @@ void login_process() {
 	} while(current_user == 0);
 }
 
+
+void change_user() {
+	set_current_user_id(0);
+	login_process();
+}
 
 int main() {
 
