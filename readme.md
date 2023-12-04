@@ -31,8 +31,25 @@ make
 then run the tool 
 
 ```
-$DynamoPATH -c ../build/libglobal_var_write_detect.so global_write_config -- bin/global_write
+$DynamoRIO_HOME/bin64/drrun -c ../build/libglobal_var_write_detect.so global_write_config -- global_write.out
 ```
+
+# Running Tools on Global Write Program
+
+We provide a simple global write program to test logging and constraint capabilities of the tool. This program reads from standard input until `EOF` and randomly assigns the three global variables the value read in a round robin style. We provide `input.txt` and `inputs_large.txt` for benchmarking purposes. These inputs can be utilized by
+
+```
+./global_write.out < input.txt
+```
+
+and similary, when running the tool
+
+```
+$DynamoRIO_HOME/bin64/drrun -c ../build/libglobal_var_write_detect.so global_write_config -- global_write.out < input.txt
+```
+
+Note: there is a convenience script `run_global_write_wtool.sh` to run the above command.
+
 
 # Running Tools on vulnerable program
 

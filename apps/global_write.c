@@ -1,22 +1,33 @@
 #include <stdio.h>
 #include <dlfcn.h>
 
-int glob1;
-int glob2 = 10;
+int glob1=0;
+int glob2 = 0;
+int glob3 = 0;
 
 int main() {
 
-	int x;
-	glob1 = 6969;
-	printf("inputted: %d\n", glob1);
+	//FILE *fp = fopen("input.txt", "r");
+	int newval;
+	int globid = 0;
+	while(scanf("%d", &newval) != EOF) {
 
-	scanf("%d", &glob1);
 
-	printf("second glob: %d\n", glob1);
 
-	glob1 = 7766;
+		if(globid == 0) {
+			glob1 += newval;
+		}
+		if(globid == 1) {
+			glob2 += newval;
+		}
+		if(globid == 2) {
+			glob3 += newval;
+		}
 
-	glob2 = glob1 * 20;
+		globid = (globid + 1) % 3;
 
-	printf("%d %d %016llx %016llx\n", glob1, glob2, &glob1, &glob2);
+	}
+
+	printf("glob1: %d, glob2: %d, glob3: %d\n", glob1, glob2, glob3);
+
 }
