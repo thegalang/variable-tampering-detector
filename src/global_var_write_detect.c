@@ -23,8 +23,10 @@ void *global_var_address;
 int saved_global_var_value;
 static int num_global_var_changed;
 int global_var_change_limit;
-int found_error; // error codes: 0: no error, 1: update limit exceeded
+int found_error; // error codes: 0: no error, 1: update limit exceeded, 2: modify outside the specific function
 
+void* func_address;
+bool func_contraint_flag = false;
 
 // multiple of 6, OPSZ_8
 #define HISTORY_BUF_SIZE 510
@@ -85,7 +87,6 @@ static inline void insert_when_global_var_is_modified(void *drcontext, instrlist
 	drx_buf_insert_load_buf_ptr(drcontext, global_history_buf, ilist, where, reg_ptr);
 	drx_buf_insert_buf_store(drcontext, global_history_buf, ilist, where, reg_ptr, DR_REG_NULL, opnd_create_reg(reg_tmp), OPSZ_8, 0);
 	drx_buf_insert_update_buf_ptr(drcontext, global_history_buf, ilist, where, reg_ptr, reg_tmp, OPSZ_PTR);
-	
 
 	// increase the counter of the number of times the value changes
     instr_t* increaseChangedGlobalVarCounter = INSTR_CREATE_inc(drcontext, opnd_create_abs_addr(&num_global_var_changed, OPSZ_PTR));
@@ -99,6 +100,8 @@ static inline void insert_when_global_var_is_modified(void *drcontext, instrlist
     instr_set_translation(isGlobalVarLimitExceeded, instr_get_app_pc(where));
     instrlist_preinsert(ilist, where, isGlobalVarLimitExceeded);
 
+	// instr_t* 
+
     instr_t* NotExceedLabel = INSTR_CREATE_label(drcontext);
     instr_set_app(NotExceedLabel);
     instr_set_translation(NotExceedLabel, instr_get_app_pc(where));
@@ -107,6 +110,11 @@ static inline void insert_when_global_var_is_modified(void *drcontext, instrlist
     instr_set_app(jumpIfNotExceed);
     instr_set_translation(jumpIfNotExceed, instr_get_app_pc(where));
     instrlist_preinsert(ilist, where, jumpIfNotExceed);
+
+	// if (!func_contraint_flag) {
+	// 	// VARIABLE TAMPERING DETECTED: Modifications outside the specific function
+	// }
+	dr_insert_clean_call(drcontext, ilist, where, terminate_with_error, false, 2, OPND_CREATE_INT32(1));
 
     // VARIABLE TAMPERING DETECTED: Modifications limit exceeded
     dr_insert_clean_call(drcontext, ilist, where, terminate_with_error, false, 1, OPND_CREATE_INT32(1));
@@ -209,6 +217,18 @@ static dr_emit_flags_t per_insn_instrument(void *drcontext, void *tag, instrlist
 
 	int i;
 
+
+	if (instr_is_call(instr)) {
+		app_pc call_address = instr_get_app_pc(instr);
+		if (call_address == func_address) {
+			func_contraint_flag = true;
+		}
+	}
+
+	if (instr_is_return(instr)) {
+		func_contraint_flag = false;
+	}
+
 	// proceed further if its a memory write operation
 	if(instr_num_srcs(instr) == 1 && 
 		instr_num_dsts(instr) == 1 && 
@@ -249,6 +269,9 @@ static void event_exit(void) {
 		dr_printf("VARIABLE TAMPERING DETECTED: Modifications limit exceeded\n");
 	}
 
+	if (found_error == 2) {
+		dr_printf("VARIABLE TAMPERING DETECTED: Modification outside specific function\n");
+	}
 }
 
 
@@ -284,6 +307,13 @@ dr_client_main(client_id_t id, int argc, const char *argv[]) {
 	
 
 	fscanf(configFP, "%d", &global_var_change_limit);
+
+	char func_name[100];
+	memset(func_name, 0, sizeof(func_name));
+	fscanf(configFP, "%s", func_name);
+	fprintf("Function name is %s\n", func_name);
+	func_address = dr_get_proc_address(main_module->handle, func_name);
+	fprintf("Address of function: %ld\n", func_address);
 
 	// register buffers
 	global_history_buf = drx_buf_create_trace_buffer(HISTORY_BUF_SIZE, flush_global_history);
