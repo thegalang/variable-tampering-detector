@@ -130,7 +130,7 @@ static inline void insert_when_global_var_is_modified(void *drcontext, instrlist
 
 	if (func_contraint_flag == 0) {
 		// VARIABLE TAMPERING DETECTED: Modifications outside the specific function
-		// dr_insert_clean_call(drcontext, ilist, where, terminate_with_error, false, 1, OPND_CREATE_INT32(2));
+		dr_insert_clean_call(drcontext, ilist, where, terminate_with_error, false, 1, OPND_CREATE_INT32(2));
 	}
 	// dr_insert_clean_call(drcontext, ilist, where, terminate_with_error, false, 1, OPND_CREATE_INT32(2));
 
