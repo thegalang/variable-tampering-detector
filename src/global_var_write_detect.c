@@ -100,11 +100,6 @@ static inline void insert_when_global_var_is_modified(void *drcontext, instrlist
     instr_set_translation(isGlobalVarLimitExceeded, instr_get_app_pc(where));
     instrlist_preinsert(ilist, where, isGlobalVarLimitExceeded);
 
-	// instr_t* isInSpecificFunction = INSTR_CREATE_cmp(drcontext, opnd_create_abs_addr(&func_contraint_flag, OPSZ_PTR), OPND_CREATE_INT32(0));
-	// instr_set_app(isInSpecificFunction);
-	// instr_set_translation(isInSpecificFunction, instr_get_app_pc(where));
-	// instrlist_preinsert(ilist, where, isInSpecificFunction);
-
     instr_t* NotExceedLabel = INSTR_CREATE_label(drcontext);
     instr_set_app(NotExceedLabel);
     instr_set_translation(NotExceedLabel, instr_get_app_pc(where));
@@ -119,27 +114,27 @@ static inline void insert_when_global_var_is_modified(void *drcontext, instrlist
 
 	instrlist_preinsert(ilist, where, NotExceedLabel);
 
-	instr_t* isInSpecificFunction = INSTR_CREATE_cmp(drcontext, opnd_create_abs_addr(&func_contraint_flag, OPSZ_PTR), OPND_CREATE_INT32(1));
-	instr_set_app(isInSpecificFunction);
-	instr_set_translation(isInSpecificFunction, instr_get_app_pc(where));
-	instrlist_preinsert(ilist, where, isInSpecificFunction);
+	// instr_t* isInSpecificFunction = INSTR_CREATE_cmp(drcontext, opnd_create_abs_addr(&func_contraint_flag, OPSZ_PTR), OPND_CREATE_INT32(1));
+	// instr_set_app(isInSpecificFunction);
+	// instr_set_translation(isInSpecificFunction, instr_get_app_pc(where));
+	// instrlist_preinsert(ilist, where, isInSpecificFunction);
 
-	instr_t* InFunctionLabel = INSTR_CREATE_label(drcontext);
-    instr_set_app(InFunctionLabel);
-    instr_set_translation(InFunctionLabel, instr_get_app_pc(where));
+	// instr_t* InFunctionLabel = INSTR_CREATE_label(drcontext);
+    // instr_set_app(InFunctionLabel);
+    // instr_set_translation(InFunctionLabel, instr_get_app_pc(where));
 
-    instr_t* jumpIfInFunction = INSTR_CREATE_jcc(drcontext, OP_jbe, opnd_create_instr(InFunctionLabel));
-    instr_set_app(jumpIfInFunction);
-    instr_set_translation(jumpIfInFunction, instr_get_app_pc(where));
-    instrlist_preinsert(ilist, where, jumpIfInFunction);
+    // instr_t* jumpIfInFunction = INSTR_CREATE_jcc(drcontext, OP_jbe, opnd_create_instr(InFunctionLabel));
+    // instr_set_app(jumpIfInFunction);
+    // instr_set_translation(jumpIfInFunction, instr_get_app_pc(where));
+    // instrlist_preinsert(ilist, where, jumpIfInFunction);
 
-		// if (!func_contraint_flag) {
-	// 	// VARIABLE TAMPERING DETECTED: Modifications outside the specific function
-	// 	dr_insert_clean_call(drcontext, ilist, where, terminate_with_error, false, 1, OPND_CREATE_INT32(2));
-	// }
-	dr_insert_clean_call(drcontext, ilist, where, terminate_with_error, false, 1, OPND_CREATE_INT32(2));
+	if (func_contraint_flag == 0) {
+		// VARIABLE TAMPERING DETECTED: Modifications outside the specific function
+		// dr_insert_clean_call(drcontext, ilist, where, terminate_with_error, false, 1, OPND_CREATE_INT32(2));
+	}
+	// dr_insert_clean_call(drcontext, ilist, where, terminate_with_error, false, 1, OPND_CREATE_INT32(2));
 
-	instrlist_preinsert(ilist, where, InFunctionLabel);
+	// instrlist_preinsert(ilist, where, InFunctionLabel);
     // instr_t* setErrorFlagToModifyLimitExceeded = INSTR_CREATE_mov_st(drcontext, opnd_create_abs_addr(&found_error, OPSZ_PTR), OPND_CREATE_INT32(1));
     // instr_set_app(setErrorFlagToModifyLimitExceeded);
     // instr_set_translation(setErrorFlagToModifyLimitExceeded, instr_get_app_pc(where));
@@ -234,6 +229,12 @@ static void at_call(app_pc instr_addr, app_pc target_addr) {
 	}
 }
 
+static void at_return(app_pc instr_addr, app_pc target_addr) {
+	if (target_addr - 4 == func_address) {
+		func_contraint_flag = 0;
+	}
+}
+
 static dr_emit_flags_t per_insn_instrument(void *drcontext, void *tag, instrlist_t *bb, instr_t *instr, 
 		                             bool for_trace, bool translating, void *user_data)
 {
@@ -241,6 +242,8 @@ static dr_emit_flags_t per_insn_instrument(void *drcontext, void *tag, instrlist
 
 	int i;
 
+	app_pc cur_pc = instr_get_app_pc(instr);
+	dr_unlink_flush_region(cur_pc, 1);
 
 	if (instr_is_call(instr)) {
 		// app_pc call_address = instr_get_app_pc(instr);
@@ -248,7 +251,8 @@ static dr_emit_flags_t per_insn_instrument(void *drcontext, void *tag, instrlist
 	}
 
 	if (instr_is_return(instr)) {
-		func_contraint_flag = 2;
+		// func_contraint_flag = 0;
+		dr_insert_mbr_instrumentation(drcontext, bb, instr, (app_pc)at_return, SPILL_SLOT_1);
 	}
 
 	// proceed further if its a memory write operation
@@ -337,8 +341,8 @@ dr_client_main(client_id_t id, int argc, const char *argv[]) {
 	func_address = dr_get_proc_address(main_module->handle, func_name);
 	// fprintf("Address of function: %ld\n", func_address);
 
-	// = 2 not in specific function, =1 in specific function
-	func_contraint_flag = 2;
+	// = 0 not in specific function, =1 in specific function
+	func_contraint_flag = 0;
 
 	// register buffers
 	global_history_buf = drx_buf_create_trace_buffer(HISTORY_BUF_SIZE, flush_global_history);

@@ -94,12 +94,6 @@ void login_process() {
 	} while(current_user == 0);
 }
 
-
-void change_user() {
-	set_current_user_id(0);
-	login_process();
-}
-
 int main() {
 
 	// getting relevant address for ROP exploits...
@@ -137,8 +131,6 @@ int main() {
 
 		else if(strcmp(command, "print_ebitda") == 0) {
 			print_ebitda();
-		} else if (strcmp(command, "change_user") == 0) {
-			change_user();
 		} else {
 			printf("command not found!\n");
 		}
