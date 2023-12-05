@@ -230,9 +230,10 @@ static void at_call(app_pc instr_addr, app_pc target_addr) {
 }
 
 static void at_return(app_pc instr_addr, app_pc target_addr) {
-	if (target_addr - 4 == func_address) {
-		func_contraint_flag = 0;
-	}
+	// if (call_addr - 4 == func_address) {
+	// 	func_contraint_flag = 0;
+	// }
+	func_contraint_flag = 0;
 }
 
 static dr_emit_flags_t per_insn_instrument(void *drcontext, void *tag, instrlist_t *bb, instr_t *instr, 

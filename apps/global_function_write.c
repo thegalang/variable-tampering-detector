@@ -4,6 +4,11 @@ int glob1 = 0;
 int glob2 = 0;
 int glob3 = 0;
 
+void c(int x) {
+	int y = x;
+	glob3 = x;
+}
+
 void a(int x) {
 	int y = x;
 	glob1 = x;
@@ -12,11 +17,6 @@ void a(int x) {
 void b(int x) {
 	int y = x;
 	glob2 = x;
-}
-
-void c(int x) {
-	int y = x;
-	glob3 = x;
 }
 
 void d(int x) {
