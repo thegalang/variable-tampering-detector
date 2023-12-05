@@ -1,0 +1,1 @@
+$DynamoPATH -c ../build/libglobal_var_write_detect.so global_function_write_config -- ./global_function_write.out
